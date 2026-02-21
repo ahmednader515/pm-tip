@@ -27,7 +27,6 @@ export default function CreateAccountPage() {
   const [formData, setFormData] = useState({
     fullName: "",
     phoneNumber: "",
-    parentPhoneNumber: "",
     password: "",
     confirmPassword: "",
   });
@@ -69,7 +68,6 @@ export default function CreateAccountPage() {
         setFormData({
           fullName: "",
           phoneNumber: "",
-          parentPhoneNumber: "",
           password: "",
           confirmPassword: "",
         });
@@ -80,10 +78,6 @@ export default function CreateAccountPage() {
         const errorMessage = axiosError.response.data as string;
         if (errorMessage.includes("Phone number already exists")) {
           toast.error("رقم الهاتف مسجل مسبقاً");
-        } else if (errorMessage.includes("Parent phone number already exists")) {
-          toast.error("رقم هاتف الوالد مسجل مسبقاً");
-        } else if (errorMessage.includes("Phone number cannot be the same as parent phone number")) {
-          toast.error("رقم الهاتف لا يمكن أن يكون نفس رقم هاتف الوالد");
         } else if (errorMessage.includes("Passwords do not match")) {
           toast.error("كلمات المرور غير متطابقة");
         } else {
@@ -101,7 +95,6 @@ export default function CreateAccountPage() {
     setFormData({
       fullName: "",
       phoneNumber: "",
-      parentPhoneNumber: "",
       password: "",
       confirmPassword: "",
     });
@@ -192,19 +185,6 @@ export default function CreateAccountPage() {
                       required
                     />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="parentPhoneNumber">رقم هاتف الوالد *</Label>
-                  <Input
-                    id="parentPhoneNumber"
-                    name="parentPhoneNumber"
-                    type="tel"
-                    value={formData.parentPhoneNumber}
-                    onChange={handleInputChange}
-                    placeholder="أدخل رقم هاتف الوالد"
-                    required
-                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

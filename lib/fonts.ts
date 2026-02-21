@@ -1,8 +1,8 @@
 import localFont from 'next/font/local';
 
-export const playpenSansArabic = localFont({
-  src: '../public/fonts/PlaypenSansArabic-VariableFont_wght.ttf',
-  variable: '--font-playpen-sans-arabic',
+export const cairo = localFont({
+  src: '../public/fonts/Cairo-VariableFont_slnt,wght.ttf',
+  variable: '--font-cairo',
   display: 'swap',
   preload: true,
-}); 
+});

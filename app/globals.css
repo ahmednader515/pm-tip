@@ -129,10 +129,10 @@ body,
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-noto-sans-arabic), var(--font-geist-sans), system-ui, sans-serif;
+    font-family: var(--font-cairo), var(--font-geist-sans), system-ui, sans-serif;
   }
   :lang(ar) {
-    font-family: var(--font-noto-sans-arabic), system-ui, sans-serif;
+    font-family: var(--font-cairo), system-ui, sans-serif;
     letter-spacing: 0;
     line-height: 1.6;
   }
@@ -165,7 +165,7 @@ body,
 
 /* Ensure the font is applied to all text */
 * {
-  font-family: var(--font-playpen-sans-arabic), system-ui, sans-serif;
+  font-family: var(--font-cairo), system-ui, sans-serif;
 }
 
 /* Prevent YouTube overlay buttons from being clickable inside Plyr */

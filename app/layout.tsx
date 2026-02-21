@@ -18,9 +18,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const playpenSansArabic = localFont({
-  src: '../public/fonts/PlaypenSansArabic-VariableFont_wght.ttf',
-  variable: '--font-playpen-sans-arabic',
+const cairo = localFont({
+  src: '../public/fonts/Cairo-VariableFont_slnt,wght.ttf',
+  variable: '--font-cairo',
   display: 'swap',
   preload: true,
 });
@@ -36,8 +36,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html suppressHydrationWarning lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} ${playpenSansArabic.variable}`}>
-      <body suppressHydrationWarning className="font-playpen-sans-arabic">
+    <html suppressHydrationWarning lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} ${cairo.variable}`}>
+      <body suppressHydrationWarning className="font-cairo">
         <script
           dangerouslySetInnerHTML={{
             __html: `

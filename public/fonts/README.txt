@@ -1,25 +1,26 @@
-Playpen Sans Arabic Variable Font
-=================================
+Cairo Variable Font
+===================
 
-This download contains Playpen Sans Arabic as both a variable font and static fonts.
+This download contains Cairo as both a variable font and static fonts.
 
-Playpen Sans Arabic is a variable font with this axis:
+Cairo is a variable font with these axes:
+  slnt
   wght
 
 This means all the styles are contained in a single file:
-  PlaypenSansArabic-VariableFont_wght.ttf
+  Cairo-VariableFont_slnt,wght.ttf
 
 If your app fully supports variable fonts, you can now pick intermediate styles
 that aren’t available as static fonts. Not all apps support variable fonts, and
-in those cases you can use the static font files for Playpen Sans Arabic:
-  static/PlaypenSansArabic-Thin.ttf
-  static/PlaypenSansArabic-ExtraLight.ttf
-  static/PlaypenSansArabic-Light.ttf
-  static/PlaypenSansArabic-Regular.ttf
-  static/PlaypenSansArabic-Medium.ttf
-  static/PlaypenSansArabic-SemiBold.ttf
-  static/PlaypenSansArabic-Bold.ttf
-  static/PlaypenSansArabic-ExtraBold.ttf
+in those cases you can use the static font files for Cairo:
+  static/Cairo-ExtraLight.ttf
+  static/Cairo-Light.ttf
+  static/Cairo-Regular.ttf
+  static/Cairo-Medium.ttf
+  static/Cairo-SemiBold.ttf
+  static/Cairo-Bold.ttf
+  static/Cairo-ExtraBold.ttf
+  static/Cairo-Black.ttf
 
 Get started
 -----------

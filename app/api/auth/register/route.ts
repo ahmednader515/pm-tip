@@ -31,9 +31,11 @@ export async function POST(req: Request) {
   try {
     const { fullName, phoneNumber, parentPhoneNumber, password, confirmPassword, recaptchaToken } = await req.json();
 
-    if (!fullName || !phoneNumber || !parentPhoneNumber || !password || !confirmPassword) {
+    if (!fullName || !phoneNumber || !password || !confirmPassword) {
       return new NextResponse("Missing required fields", { status: 400 });
     }
+
+    const parentPhone = parentPhoneNumber?.trim() || "";
 
     // Verify reCAPTCHA token
     if (!recaptchaToken) {
@@ -49,17 +51,15 @@ export async function POST(req: Request) {
       return new NextResponse("Passwords do not match", { status: 400 });
     }
 
-    // Check if phone number is the same as parent phone number
-    if (phoneNumber === parentPhoneNumber) {
+    if (parentPhone && phoneNumber === parentPhone) {
       return new NextResponse("Phone number cannot be the same as parent phone number", { status: 400 });
     }
 
-    // Check if user already exists
     const existingUser = await db.user.findFirst({
       where: {
         OR: [
           { phoneNumber },
-          { parentPhoneNumber }
+          ...(parentPhone ? [{ parentPhoneNumber: parentPhone }] : [])
         ]
       },
     });
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       if (existingUser.phoneNumber === phoneNumber) {
         return new NextResponse("Phone number already exists", { status: 400 });
       }
-      if (existingUser.parentPhoneNumber === parentPhoneNumber) {
+      if (parentPhone && existingUser.parentPhoneNumber === parentPhone) {
         return new NextResponse("Parent phone number already exists", { status: 400 });
       }
     }
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
       data: {
         fullName,
         phoneNumber,
-        parentPhoneNumber,
+        parentPhoneNumber: parentPhone,
         hashedPassword,
         role: "USER",
       },

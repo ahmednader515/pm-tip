@@ -22,7 +22,6 @@ export default function SignUpPage() {
   const [formData, setFormData] = useState({
     fullName: "",
     phoneNumber: "",
-    parentPhoneNumber: "",
     password: "",
     confirmPassword: "",
   });
@@ -76,10 +75,6 @@ export default function SignUpPage() {
         const errorMessage = axiosError.response.data as string;
         if (errorMessage.includes("Phone number already exists")) {
           toast.error("رقم الهاتف مسجل مسبقاً");
-        } else if (errorMessage.includes("Parent phone number already exists")) {
-          toast.error("رقم هاتف الوالد مسجل مسبقاً");
-        } else if (errorMessage.includes("Phone number cannot be the same as parent phone number")) {
-          toast.error("رقم الهاتف لا يمكن أن يكون نفس رقم هاتف الوالد");
         } else if (errorMessage.includes("Passwords do not match")) {
           toast.error("كلمات المرور غير متطابقة");
         } else if (errorMessage.includes("reCAPTCHA")) {
@@ -172,21 +167,6 @@ export default function SignUpPage() {
                 disabled={isLoading}
                 className="h-10"
                 value={formData.phoneNumber}
-                onChange={handleInputChange}
-                placeholder="+20XXXXXXXXXX"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="parentPhoneNumber">رقم هاتف الوالد</Label>
-              <Input
-                id="parentPhoneNumber"
-                name="parentPhoneNumber"
-                type="tel"
-                autoComplete="tel"
-                required
-                disabled={isLoading}
-                className="h-10"
-                value={formData.parentPhoneNumber}
                 onChange={handleInputChange}
                 placeholder="+20XXXXXXXXXX"
               />

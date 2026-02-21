@@ -121,16 +121,15 @@ export default function HomePage() {
             transition={{ duration: 0.8 }}
             className="relative flex justify-center items-center order-1 md:order-2"
           >
-            <div className="relative w-64 h-64 md:w-80 md:h-80 overflow-hidden rounded-full border-4 border-brand/20 shadow-lg">
-              <div className="absolute inset-0 top-[-20%] bottom-[-20%]">
+            <div className="relative w-32 h-32 md:w-80 md:h-80 overflow-hidden rounded-full border-4 border-brand/20 shadow-lg bg-background">
+              <div className="absolute inset-2 md:inset-4">
                 <Image
-                  src="/teacher-image.png"
-                  alt="منصة/ PM TIP"
+                  src="/logo.png"
+                  alt="منصة PM TIP"
                   fill
                   priority
-                  className="object-cover object-top"
-                  style={{ transform: 'scaleX(-1) translateY(15%)' }}
-                  sizes="(max-width: 768px) 256px, 320px"
+                  className="object-contain object-center"
+                  sizes="(max-width: 768px) 128px, 288px"
                 />
               </div>
             </div>
