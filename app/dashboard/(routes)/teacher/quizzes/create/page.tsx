@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, GripVertical, X, Mic } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { usePathname } from "next/navigation";
 import { useNavigationRouter } from "@/lib/hooks/use-navigation-router";
@@ -49,7 +50,7 @@ interface Question {
     imageUrl?: string;
     type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER";
     options?: string[];
-    correctAnswer: string | number; // Can be string for TRUE_FALSE/SHORT_ANSWER or number for MULTIPLE_CHOICE
+    correctAnswer: string | number | number[]; // TRUE_FALSE/SHORT_ANSWER: string; MULTIPLE_CHOICE: number[] (indices)
     points: number;
 }
 
@@ -288,10 +289,13 @@ const CreateQuizPage = () => {
                     validationErrors.push(`السؤال ${i + 1}: يجب إضافة خيار واحد على الأقل`);
                     continue;
                 }
-                
-                // Check if correct answer index is valid
-                if (typeof question.correctAnswer !== 'number' || question.correctAnswer < 0 || question.correctAnswer >= validOptions.length) {
-                    validationErrors.push(`السؤال ${i + 1}: يجب اختيار إجابة صحيحة`);
+                const correctArr = Array.isArray(question.correctAnswer)
+                    ? question.correctAnswer
+                    : typeof question.correctAnswer === "number"
+                    ? [question.correctAnswer]
+                    : [];
+                if (correctArr.length === 0 || correctArr.some((idx) => idx < 0 || idx >= validOptions.length)) {
+                    validationErrors.push(`السؤال ${i + 1}: يجب اختيار إجابة صحيحة واحدة على الأقل`);
                     continue;
                 }
             } else if (question.type === "TRUE_FALSE") {
@@ -375,11 +379,55 @@ const CreateQuizPage = () => {
             id: `question-${Date.now()}`,
             text: "",
             type: "MULTIPLE_CHOICE",
-            options: ["", "", "", ""],
-            correctAnswer: 0, // Use index 0 for first option
+            options: ["", ""],
+            correctAnswer: [0],
             points: 1,
         };
         setQuestions([...questions, newQuestion]);
+    };
+
+    const addOption = (questionIndex: number) => {
+        const question = questions[questionIndex];
+        const currentOptions = question.options || ["", ""];
+        updateQuestion(questionIndex, "options", [...currentOptions, ""]);
+    };
+
+    const removeOption = (questionIndex: number, optionIndex: number) => {
+        const question = questions[questionIndex];
+        const currentOptions = question.options || ["", ""];
+        if (currentOptions.length <= 2) return;
+        const newOptions = currentOptions.filter((_, i) => i !== optionIndex);
+        const currentCorrect = Array.isArray(question.correctAnswer)
+            ? question.correctAnswer
+            : typeof question.correctAnswer === "number"
+            ? [question.correctAnswer]
+            : [0];
+        const newCorrect = currentCorrect
+            .filter((i) => i !== optionIndex)
+            .map((i) => (i > optionIndex ? i - 1 : i));
+        const updated = {
+            ...question,
+            options: newOptions,
+            correctAnswer: newCorrect.length ? newCorrect : [0],
+        };
+        const updatedQuestions = [...questions];
+        updatedQuestions[questionIndex] = updated;
+        setQuestions(updatedQuestions);
+    };
+
+    const toggleCorrectOption = (questionIndex: number, optionIndex: number) => {
+        const question = questions[questionIndex];
+        const current = Array.isArray(question.correctAnswer)
+            ? question.correctAnswer
+            : typeof question.correctAnswer === "number"
+            ? [question.correctAnswer]
+            : [0];
+        const set = new Set(current);
+        if (set.has(optionIndex)) set.delete(optionIndex);
+        else set.add(optionIndex);
+        const newCorrect = Array.from(set).sort((a, b) => a - b);
+        if (newCorrect.length === 0) return; // require at least one
+        updateQuestion(questionIndex, "correctAnswer", newCorrect);
     };
 
     const updateQuestion = (index: number, field: keyof Question, value: any) => {
@@ -611,9 +659,11 @@ const CreateQuizPage = () => {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <CardTitle className="text-lg">السؤال {index + 1}</CardTitle>
-                                        {(!question.text.trim() || !question.correctAnswer.toString().trim() || 
-                                          (question.type === "MULTIPLE_CHOICE" && 
-                                           (!question.options || question.options.filter(opt => opt.trim() !== "").length < 2))) && (
+                                        {(!question.text.trim() ||
+                                          (question.type === "MULTIPLE_CHOICE" &&
+                                           (!question.options || question.options.filter(opt => opt.trim() !== "").length < 2)) ||
+                                          (question.type === "MULTIPLE_CHOICE" && (!Array.isArray(question.correctAnswer) || question.correctAnswer.length === 0)) ||
+                                          (question.type !== "MULTIPLE_CHOICE" && !question.correctAnswer?.toString()?.trim())) && (
                                             <Badge variant="destructive" className="text-xs">
                                                 غير مكتمل
                                             </Badge>
@@ -710,9 +760,15 @@ const CreateQuizPage = () => {
                                         <Label>نوع السؤال</Label>
                                         <Select
                                             value={question.type}
-                                            onValueChange={(value: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER") =>
-                                                updateQuestion(index, "type", value)
-                                            }
+                                            onValueChange={(value: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER") => {
+                                                if (value === "MULTIPLE_CHOICE" && !Array.isArray(question.correctAnswer)) {
+                                                    const updated = [...questions];
+                                                    updated[index] = { ...updated[index], type: value, correctAnswer: [0] };
+                                                    setQuestions(updated);
+                                                } else {
+                                                    updateQuestion(index, "type", value);
+                                                }
+                                            }}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue />
@@ -738,25 +794,50 @@ const CreateQuizPage = () => {
                                 {question.type === "MULTIPLE_CHOICE" && (
                                     <div className="space-y-2">
                                         <Label>الخيارات</Label>
-                                        {(question.options || ["", "", "", ""]).map((option, optionIndex) => (
-                                            <div key={`${question.id}-option-${optionIndex}`} className="flex items-center space-x-2">
+                                        {(question.options || ["", ""]).map((option, optionIndex) => (
+                                            <div key={`${question.id}-option-${optionIndex}`} className="flex items-center gap-2">
                                                 <Input
+                                                    className="flex-1"
                                                     value={option}
                                                     onChange={(e) => {
-                                                        const newOptions = [...(question.options || ["", "", "", ""])];
+                                                        const opts = question.options || ["", ""];
+                                                        const newOptions = [...opts];
                                                         newOptions[optionIndex] = e.target.value;
                                                         updateQuestion(index, "options", newOptions);
                                                     }}
                                                     placeholder={`الخيار ${optionIndex + 1}`}
                                                 />
-                                                <input
-                                                    type="radio"
-                                                    name={`correct-${index}`}
-                                                    checked={typeof question.correctAnswer === 'number' && question.correctAnswer === optionIndex}
-                                                    onChange={() => updateQuestion(index, "correctAnswer", optionIndex)}
-                                                />
+                                                <div className="flex items-center gap-1 shrink-0" title="إجابة صحيحة">
+                                                    <Checkbox
+                                                        id={`correct-${question.id}-${optionIndex}`}
+                                                        checked={(Array.isArray(question.correctAnswer) ? question.correctAnswer : []).includes(optionIndex)}
+                                                        onCheckedChange={() => toggleCorrectOption(index, optionIndex)}
+                                                    />
+                                                    <Label htmlFor={`correct-${question.id}-${optionIndex}`} className="text-xs cursor-pointer">صحيح</Label>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                                                    onClick={() => removeOption(index, optionIndex)}
+                                                    disabled={(question.options || ["", ""]).length <= 2}
+                                                    title="حذف الخيار"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
                                             </div>
                                         ))}
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => addOption(index)}
+                                            className="gap-1"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            إضافة خيار
+                                        </Button>
                                     </div>
                                 )}
 

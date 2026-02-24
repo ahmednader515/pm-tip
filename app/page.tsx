@@ -125,7 +125,7 @@ export default function HomePage() {
               <div className="absolute inset-2 md:inset-4">
                 <Image
                   src="/logo.png"
-                  alt="منصة PM TIP"
+                  alt="منصة PM TIPS"
                   fill
                   priority
                   className="object-contain object-center"
@@ -243,7 +243,7 @@ export default function HomePage() {
             className="text-center mt-0 md:mt-0 order-2 md:order-1"
           >
             <h1 className="text-4xl md:text-6xl font-bold mb-4">
-            <span className="text-brand">PM TIP</span>
+            <span className="text-brand">PM TIPS</span>
             </h1>
             <p className="text-xl md:text-2xl text-muted-foreground mb-8">
               طريقك للنجاح و التفوق
@@ -428,7 +428,7 @@ export default function HomePage() {
               {
                 name: "عصام اسامة",
                 grade: "الصف الأول الثانوي",
-                testimonial: "تجربة رائعة مع منصة PM TIP، المحتوى غني والشرح مبسط"
+                testimonial: "تجربة رائعة مع منصة PM TIPS، المحتوى غني والشرح مبسط"
               },
               {
                 name: "سيف طارق",

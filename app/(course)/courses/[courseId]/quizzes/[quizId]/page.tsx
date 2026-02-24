@@ -4,13 +4,14 @@ import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Clock, CheckCircle, AlertCircle, Save } from "lucide-react";
+import { ArrowLeft, Clock, AlertCircle, Save, Eye, Languages } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { parseQuizOptions } from "@/lib/utils";
 
 interface Question {
@@ -36,7 +37,7 @@ interface Quiz {
 
 interface QuizAnswer {
     questionId: string;
-    answer: string;
+    answer: string; // for MULTIPLE_CHOICE: JSON array of selected option strings; else single string
 }
 
 export default function QuizPage({
@@ -62,6 +63,13 @@ export default function QuizPage({
     const [savingDraft, setSavingDraft] = useState(false);
     const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
     const saveDraftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [revealedCorrect, setRevealedCorrect] = useState<Record<string, string>>({});
+    const [revealedCorrectTranslated, setRevealedCorrectTranslated] = useState<Record<string, string>>({});
+    const [loadingCorrectId, setLoadingCorrectId] = useState<string | null>(null);
+    const [translating, setTranslating] = useState(false);
+    const [translatedQuiz, setTranslatedQuiz] = useState<{
+        questions: { text: string; options?: string[] }[];
+    } | null>(null);
 
     useEffect(() => {
         fetchQuiz();
@@ -79,6 +87,34 @@ export default function QuizPage({
             if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current);
         };
     }, []);
+
+    // When in translated view, translate any revealed correct answers that aren't translated yet
+    useEffect(() => {
+        if (!translatedQuiz) return;
+        const toTranslate = Object.entries(revealedCorrect).filter(
+            ([id, text]) => text && !revealedCorrectTranslated[id]
+        );
+        if (toTranslate.length === 0) return;
+        (async () => {
+            for (const [questionId, text] of toTranslate) {
+                try {
+                    const res = await fetch("/api/translate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ texts: [text] }),
+                    });
+                    if (res.ok) {
+                        const { translations } = await res.json();
+                        if (Array.isArray(translations) && translations[0]) {
+                            setRevealedCorrectTranslated((prev) => ({ ...prev, [questionId]: translations[0] }));
+                        }
+                    }
+                } catch {
+                    // keep original
+                }
+            }
+        })();
+    }, [translatedQuiz, revealedCorrect]);
 
     useEffect(() => {
         if (quiz?.timer != null && timeLeft > 0) {
@@ -165,7 +201,95 @@ export default function QuizPage({
                 }
                 return [...prev, { questionId, answer }];
             })();
-            // Debounced auto-save when student chooses an option
+            if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current);
+            saveDraftTimeoutRef.current = setTimeout(() => saveDraft(next), 1500);
+            return next;
+        });
+    };
+
+    const fetchCorrectAnswer = async (questionId: string) => {
+        setLoadingCorrectId(questionId);
+        try {
+            const res = await fetch(
+                `/api/courses/${courseId}/quizzes/${quizId}/correct-answer?questionId=${encodeURIComponent(questionId)}`
+            );
+            if (res.ok) {
+                const data = await res.json();
+                setRevealedCorrect((prev) => ({ ...prev, [questionId]: data.correctAnswer }));
+            } else {
+                toast.error("تعذر تحميل الإجابة الصحيحة");
+            }
+        } catch {
+            toast.error("تعذر تحميل الإجابة الصحيحة");
+        } finally {
+            setLoadingCorrectId(null);
+        }
+    };
+
+    const handleTranslateQuiz = async () => {
+        if (!quiz || translating) return;
+        setTranslating(true);
+        try {
+            const texts: string[] = [];
+            quiz.questions.forEach((q) => {
+                texts.push(q.text);
+                if (q.options) {
+                    const opts = Array.isArray(q.options) ? q.options : parseQuizOptions(q.options);
+                    opts.forEach((o) => texts.push(o));
+                }
+            });
+            if (texts.length === 0) {
+                toast.info("لا يوجد نص للترجمة");
+                setTranslating(false);
+                return;
+            }
+            const res = await fetch("/api/translate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ texts }),
+            });
+            if (!res.ok) throw new Error("Translate failed");
+            const { translations } = await res.json();
+            if (!Array.isArray(translations) || translations.length !== texts.length) throw new Error("Invalid response");
+            let idx = 0;
+            const questions = quiz.questions.map((q) => {
+                const text = translations[idx++] ?? q.text;
+                let options: string[] | undefined;
+                if (q.options) {
+                    const opts = Array.isArray(q.options) ? q.options : parseQuizOptions(q.options);
+                    options = opts.map(() => translations[idx++] ?? "");
+                }
+                return { text, options };
+            });
+            setTranslatedQuiz({ questions });
+            toast.success("تمت الترجمة إلى الإنجليزية");
+        } catch {
+            toast.error("فشل في الترجمة. حاول مرة أخرى لاحقاً.");
+        } finally {
+            setTranslating(false);
+        }
+    };
+
+    const handleMultipleChoiceToggle = (questionId: string, optionText: string) => {
+        setAnswers(prev => {
+            const existing = prev.find(a => a.questionId === questionId);
+            let current: string[] = [];
+            if (existing?.answer) {
+                try {
+                    const parsed = JSON.parse(existing.answer);
+                    current = Array.isArray(parsed) ? parsed.filter((x: unknown) => typeof x === "string") : [existing.answer];
+                } catch {
+                    current = [existing.answer];
+                }
+            }
+            const set = new Set(current);
+            if (set.has(optionText)) set.delete(optionText);
+            else set.add(optionText);
+            const nextArr = Array.from(set);
+            const nextAnswer = JSON.stringify(nextArr);
+            const next = existing
+                ? prev.map(a => a.questionId === questionId ? { ...a, answer: nextAnswer } : a)
+                : [...prev, { questionId, answer: nextAnswer }];
             if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current);
             saveDraftTimeoutRef.current = setTimeout(() => saveDraft(next), 1500);
             return next;
@@ -287,6 +411,16 @@ export default function QuizPage({
                                 <Save className="h-4 w-4" />
                                 {savingDraft ? "جاري الحفظ..." : "حفظ الإجابات"}
                             </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={translating || !quiz}
+                                onClick={translatedQuiz ? () => setTranslatedQuiz(null) : handleTranslateQuiz}
+                                className="flex items-center gap-2"
+                            >
+                                <Languages className="h-4 w-4" />
+                                {translatedQuiz ? "عرض العربية" : translating ? "جاري الترجمة..." : "ترجمة إلى الإنجليزية"}
+                            </Button>
                             {lastSavedAt && !savingDraft && (
                                 <span className="text-xs text-muted-foreground">
                                     آخر حفظ: {lastSavedAt.toLocaleTimeString("ar-SA")}
@@ -336,7 +470,14 @@ export default function QuizPage({
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div className="text-lg">{currentQuestionData.text}</div>
+                            {revealedCorrect[currentQuestionData.id] != null && (
+                                <div className="rounded-md bg-muted/80 px-3 py-1.5 text-sm text-muted-foreground inline-flex items-center gap-1">
+                                    تم تحديد السؤال — لا يمكن تعديل الإجابة
+                                </div>
+                            )}
+                            <div className="text-lg">
+                                {translatedQuiz?.questions[currentQuestion]?.text ?? currentQuestionData.text}
+                            </div>
 
                             {/* Question Image */}
                             {currentQuestionData.imageUrl && (
@@ -350,33 +491,56 @@ export default function QuizPage({
                             )}
 
                             {currentQuestionData.type === "MULTIPLE_CHOICE" && (
-                                <RadioGroup
-                                    value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
-                                    onValueChange={(value) => handleAnswerChange(currentQuestionData.id, value)}
-                                >
-                                    {(Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null)).map((option: string, index: number) => (
-                                        <div key={index} className="flex items-center space-x-2">
-                                            <RadioGroupItem value={option} id={`option-${index}`} />
-                                            <Label htmlFor={`option-${index}`}>{option}</Label>
-                                        </div>
-                                    ))}
-                                </RadioGroup>
+                                <div className={`space-y-3 ${revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}`}>
+                                    <p className="text-sm text-muted-foreground">يمكنك اختيار أكثر من إجابة</p>
+                                    {(() => {
+                                        const opts = translatedQuiz?.questions[currentQuestion]?.options ??
+                                            (Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null));
+                                        const origOpts = Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null);
+                                        const isLocked = revealedCorrect[currentQuestionData.id] != null;
+                                        return opts.map((option: string, index: number) => {
+                                            const origOption = origOpts[index] ?? option;
+                                            const raw = answers.find(a => a.questionId === currentQuestionData.id)?.answer ?? "";
+                                            let selected = false;
+                                            try {
+                                                const parsed = JSON.parse(raw);
+                                                selected = Array.isArray(parsed) && parsed.includes(origOption);
+                                            } catch {
+                                                selected = raw === origOption;
+                                            }
+                                            return (
+                                                <div key={index} className="flex items-center space-x-2">
+                                                    <Checkbox
+                                                        id={`option-${currentQuestionData.id}-${index}`}
+                                                        checked={selected}
+                                                        disabled={isLocked}
+                                                        onCheckedChange={() => handleMultipleChoiceToggle(currentQuestionData.id, origOption)}
+                                                    />
+                                                    <Label htmlFor={`option-${currentQuestionData.id}-${index}`} className="cursor-pointer flex-1">{option}</Label>
+                                                </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
                             )}
 
                             {currentQuestionData.type === "TRUE_FALSE" && (
-                                <RadioGroup
-                                    value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
-                                    onValueChange={(value) => handleAnswerChange(currentQuestionData.id, value)}
-                                >
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="true" id="true" />
-                                        <Label htmlFor="true">صح</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="false" id="false" />
-                                        <Label htmlFor="false">خطأ</Label>
-                                    </div>
-                                </RadioGroup>
+                                <div className={revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}>
+                                    <RadioGroup
+                                        value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
+                                        onValueChange={(value) => handleAnswerChange(currentQuestionData.id, value)}
+                                        disabled={revealedCorrect[currentQuestionData.id] != null}
+                                    >
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="true" id={`true-${currentQuestionData.id}`} disabled={revealedCorrect[currentQuestionData.id] != null} />
+                                            <Label htmlFor={`true-${currentQuestionData.id}`}>صح</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="false" id={`false-${currentQuestionData.id}`} disabled={revealedCorrect[currentQuestionData.id] != null} />
+                                            <Label htmlFor={`false-${currentQuestionData.id}`}>خطأ</Label>
+                                        </div>
+                                    </RadioGroup>
+                                </div>
                             )}
 
                             {currentQuestionData.type === "SHORT_ANSWER" && (
@@ -385,7 +549,39 @@ export default function QuizPage({
                                     value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
                                     onChange={(e) => handleAnswerChange(currentQuestionData.id, e.target.value)}
                                     rows={4}
+                                    disabled={revealedCorrect[currentQuestionData.id] != null}
+                                    className={revealedCorrect[currentQuestionData.id] != null ? "opacity-80" : ""}
                                 />
+                            )}
+
+                            {/* Show correct answer (after student has answered) */}
+                            {answers.some((a) => a.questionId === currentQuestionData.id) && (
+                                <div className="pt-2 border-t space-y-2">
+                                    {revealedCorrect[currentQuestionData.id] == null ? (
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="sm"
+                                            disabled={loadingCorrectId === currentQuestionData.id}
+                                            onClick={() => fetchCorrectAnswer(currentQuestionData.id)}
+                                            className="gap-2"
+                                        >
+                                            <Eye className="h-4 w-4" />
+                                            {loadingCorrectId === currentQuestionData.id ? "جاري التحميل..." : "عرض الإجابة الصحيحة"}
+                                        </Button>
+                                    ) : (
+                                        <div className="rounded-md bg-muted p-3 text-sm">
+                                            <span className="font-medium text-muted-foreground">
+                                                {translatedQuiz ? "Correct answer: " : "الإجابة الصحيحة: "}
+                                            </span>
+                                            <span>
+                                                {translatedQuiz && revealedCorrectTranslated[currentQuestionData.id] != null
+                                                    ? revealedCorrectTranslated[currentQuestionData.id]
+                                                    : revealedCorrect[currentQuestionData.id]}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </CardContent>
                     </Card>

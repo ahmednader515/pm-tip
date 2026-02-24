@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { parseQuizOptions } from "@/lib/utils";
+import { parseQuizOptions, parseCorrectAnswer } from "@/lib/utils";
 import { hasCourseAccess } from "@/lib/course-access";
 
 export async function POST(
@@ -81,15 +81,21 @@ export async function POST(
             let pointsEarned = 0;
 
             if (question.type === "MULTIPLE_CHOICE") {
-                // Parse options to get the correct answer format
-                const options = parseQuizOptions(question.options);
-                const correctAnswer = question.correctAnswer.trim();
-                
-                // Check if student answer matches any of the correct options
-                isCorrect = options.some(option => 
-                    option.trim() === correctAnswer && 
-                    option.trim() === studentAnswer.trim()
-                );
+                const correctOptionTexts = parseCorrectAnswer(question.correctAnswer);
+                let studentSelected: string[] = [];
+                try {
+                    const parsed = JSON.parse(studentAnswer);
+                    if (Array.isArray(parsed)) {
+                        studentSelected = parsed.filter((x: unknown) => typeof x === "string").map((s: string) => s.trim());
+                    } else {
+                        studentSelected = studentAnswer.trim() ? [studentAnswer.trim()] : [];
+                    }
+                } catch {
+                    studentSelected = studentAnswer.trim() ? [studentAnswer.trim()] : [];
+                }
+                const correctSet = new Set(correctOptionTexts.map((t) => t.trim()));
+                const studentSet = new Set(studentSelected);
+                isCorrect = correctSet.size === studentSet.size && [...correctSet].every((t) => studentSet.has(t));
             } else if (question.type === "TRUE_FALSE") {
                 isCorrect = studentAnswer.toLowerCase() === question.correctAnswer.toLowerCase();
             } else if (question.type === "SHORT_ANSWER") {
@@ -104,8 +110,8 @@ export async function POST(
 
             quizAnswers.push({
                 questionId: question.id,
-                studentAnswer,
-                correctAnswer: question.correctAnswer,
+                studentAnswer, // already string (single or JSON array)
+                correctAnswer: question.correctAnswer, // stored as-is (single or JSON array)
                 isCorrect,
                 pointsEarned
             });

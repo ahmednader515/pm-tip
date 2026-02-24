@@ -150,9 +150,13 @@ export async function PATCH(
                     return NextResponse.json({ error: `Question ${i + 1}: At least 2 valid options are required` }, { status: 400 });
                 }
 
-                // For multiple choice, correctAnswer should be an index
-                if (typeof question.correctAnswer !== 'number' || question.correctAnswer < 0 || question.correctAnswer >= validOptions.length) {
-                    return NextResponse.json({ error: `Question ${i + 1}: Valid correct answer index is required` }, { status: 400 });
+                const indices = Array.isArray(question.correctAnswer)
+                    ? question.correctAnswer
+                    : typeof question.correctAnswer === "number"
+                    ? [question.correctAnswer]
+                    : [];
+                if (indices.length === 0 || indices.some((idx: number) => typeof idx !== "number" || idx < 0 || idx >= validOptions.length)) {
+                    return NextResponse.json({ error: `Question ${i + 1}: At least one valid correct answer index is required` }, { status: 400 });
                 }
             } else if (question.type === "TRUE_FALSE") {
                 if (!question.correctAnswer || (question.correctAnswer !== "true" && question.correctAnswer !== "false")) {
@@ -205,14 +209,15 @@ export async function PATCH(
         if (questions.length > 0) {
             await db.question.createMany({
                 data: questions.map((question: any, index: number) => {
-                    let correctAnswerValue = question.correctAnswer;
-                    
-                    // For multiple choice questions, convert index to actual option value
+                    let correctAnswerValue: string = String(question.correctAnswer ?? "");
                     if (question.type === "MULTIPLE_CHOICE") {
                         const validOptions = question.options.filter((option: string) => option && option.trim() !== "");
-                        correctAnswerValue = validOptions[question.correctAnswer];
+                        const indices = Array.isArray(question.correctAnswer)
+                            ? question.correctAnswer
+                            : [question.correctAnswer];
+                        const optionTexts = indices.map((i: number) => validOptions[i]).filter(Boolean);
+                        correctAnswerValue = optionTexts.length ? JSON.stringify(optionTexts) : validOptions[0] ?? "";
                     }
-                    
                     return {
                         text: question.text,
                         type: question.type,

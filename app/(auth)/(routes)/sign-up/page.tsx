@@ -120,7 +120,7 @@ export default function SignUpPage() {
             </div>
             <div className="space-y-4">
               <h3 className="text-2xl font-bold text-brand">
-                مرحباً بك في منصة PM TIP التعليمية
+                مرحباً بك في منصة PM TIPS التعليمية
               </h3>
               <p className="text-lg text-muted-foreground max-w-md">
                 انضم إلينا اليوم وابدأ رحلة التعلم مع أفضل المدرسين

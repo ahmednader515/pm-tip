@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, CheckCircle, XCircle, FileText, User, Calendar, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { parseQuizOptions } from "@/lib/utils";
+import { parseQuizOptions, parseCorrectAnswer } from "@/lib/utils";
 
 interface QuizResult {
     id: string;
@@ -111,38 +111,48 @@ const QuizResultDetailPage = ({ params }: { params: Promise<{ resultId: string }
 
     const renderQuestionChoices = (answer: QuizAnswer) => {
         if (answer.question.type === "MULTIPLE_CHOICE" && answer.question.options) {
+            const correctSet = new Set(parseCorrectAnswer(answer.question.correctAnswer));
+            const rawStudent = (answer as any).studentAnswer ?? (answer as any).answer ?? "";
+            let studentSet = new Set<string>();
+            try {
+                const parsed = JSON.parse(rawStudent);
+                if (Array.isArray(parsed)) {
+                    studentSet = new Set(parsed.filter((x: unknown) => typeof x === "string"));
+                } else {
+                    if (rawStudent) studentSet = new Set([rawStudent]);
+                }
+            } catch {
+                if (rawStudent) studentSet = new Set([rawStudent]);
+            }
             return (
                 <div className="space-y-2">
                     <h5 className="font-medium text-sm">الخيارات:</h5>
                     <div className="space-y-1">
-                        {answer.question.options.map((option: string, optionIndex: number) => (
-                            <div
-                                key={optionIndex}
-                                className={`p-2 rounded border ${
-                                    option === answer.answer
-                                        ? answer.isCorrect
-                                            ? "bg-green-50 border-green-200"
-                                            : "bg-red-50 border-red-200"
-                                        : option === answer.question.correctAnswer
-                                        ? "bg-green-50 border-green-200"
-                                        : "bg-gray-50"
-                                }`}
-                            >
-                                <span className="text-sm">
-                                    {optionIndex + 1}. {option}
-                                    {option === answer.answer && (
-                                        <Badge variant={answer.isCorrect ? "default" : "destructive"} className="mr-2">
-                                            إجابة الطالب
-                                        </Badge>
-                                    )}
-                                    {option === answer.question.correctAnswer && option !== answer.answer && (
-                                        <Badge variant="default" className="mr-2">
-                                            الإجابة الصحيحة
-                                        </Badge>
-                                    )}
-                                </span>
-                            </div>
-                        ))}
+                        {answer.question.options.map((option: string, optionIndex: number) => {
+                            const isStudent = studentSet.has(option);
+                            const isCorrect = correctSet.has(option);
+                            let bg = "bg-gray-50";
+                            if (isStudent && isCorrect) bg = "bg-green-50 border-green-200";
+                            else if (isStudent && !isCorrect) bg = "bg-red-50 border-red-200";
+                            else if (isCorrect) bg = "bg-green-50 border-green-200";
+                            return (
+                                <div key={optionIndex} className={`p-2 rounded border ${bg}`}>
+                                    <span className="text-sm">
+                                        {optionIndex + 1}. {option}
+                                        {isStudent && (
+                                            <Badge variant={answer.isCorrect ? "default" : "destructive"} className="mr-2">
+                                                إجابة الطالب
+                                            </Badge>
+                                        )}
+                                        {isCorrect && !isStudent && (
+                                            <Badge variant="default" className="mr-2">
+                                                الإجابة الصحيحة
+                                            </Badge>
+                                        )}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             );
@@ -320,7 +330,7 @@ const QuizResultDetailPage = ({ params }: { params: Promise<{ resultId: string }
                                             <div className="mt-2">
                                                 <span className="text-sm font-medium">إجابة الطالب: </span>
                                                 <Badge variant={answer.isCorrect ? "default" : "destructive"}>
-                                                    {answer.answer === "true" ? "صح" : "خطأ"}
+                                                    {((answer as any).studentAnswer ?? (answer as any).answer) === "true" ? "صح" : "خطأ"}
                                                 </Badge>
                                             </div>
                                         </div>
@@ -339,7 +349,7 @@ const QuizResultDetailPage = ({ params }: { params: Promise<{ resultId: string }
                                                         ? "bg-green-50 border-green-200" 
                                                         : "bg-red-50 border-red-200"
                                                 }`}>
-                                                    {answer.answer}
+                                                    {(answer as any).studentAnswer ?? (answer as any).answer}
                                                 </p>
                                             </div>
                                         </div>

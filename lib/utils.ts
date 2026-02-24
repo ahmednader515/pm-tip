@@ -94,6 +94,25 @@ export function stringifyQuizOptions(options: string[]): string | null {
 }
 
 /**
+ * Parses correctAnswer for MULTIPLE_CHOICE: supports single value (legacy) or JSON array
+ * @param value - Stored correctAnswer string (single option text or JSON array of option texts)
+ * @returns Array of correct option strings (one or more)
+ */
+export function parseCorrectAnswer(value: string | null | undefined): string[] {
+  if (value == null || String(value).trim() === "") return [];
+  const s = String(value).trim();
+  try {
+    const parsed = JSON.parse(s);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((x: unknown) => typeof x === "string" && x.trim() !== "");
+    }
+  } catch {
+    // not JSON
+  }
+  return [s];
+}
+
+/**
  * Validates quiz options format
  * @param options - The options to validate
  * @returns Object with isValid boolean and error message if invalid

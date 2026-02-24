@@ -26,7 +26,7 @@ const cairo = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "منصة PM TIP",
+  title: "منصة PM TIPS",
   description: "منصة تعليمية متكاملة",
 };
 

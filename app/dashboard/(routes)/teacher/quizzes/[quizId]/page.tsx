@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit, Trash2, Eye, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { parseCorrectAnswer } from "@/lib/utils";
 
 interface Quiz {
     id: string;
@@ -197,25 +198,26 @@ const QuizViewPage = ({ params }: { params: Promise<{ quizId: string }> }) => {
                                             <div className="space-y-2">
                                                 <h5 className="font-medium text-sm">الخيارات:</h5>
                                                 <div className="space-y-1">
-                                                    {question.options.map((option, optionIndex) => (
-                                                        <div
-                                                            key={optionIndex}
-                                                            className={`p-2 rounded border ${
-                                                                option === question.correctAnswer
-                                                                    ? "bg-green-50 border-green-200"
-                                                                    : "bg-gray-50"
-                                                            }`}
-                                                        >
-                                                            <span className="text-sm">
-                                                                {optionIndex + 1}. {option}
-                                                                {option === question.correctAnswer && (
-                                                                    <Badge variant="default" className="mr-2">
-                                                                        الإجابة الصحيحة
-                                                                    </Badge>
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                    ))}
+                                                    {(() => {
+                                                        const correctSet = new Set(parseCorrectAnswer(question.correctAnswer));
+                                                        return question.options.map((option, optionIndex) => (
+                                                            <div
+                                                                key={optionIndex}
+                                                                className={`p-2 rounded border ${
+                                                                    correctSet.has(option) ? "bg-green-50 border-green-200" : "bg-gray-50"
+                                                                }`}
+                                                            >
+                                                                <span className="text-sm">
+                                                                    {optionIndex + 1}. {option}
+                                                                    {correctSet.has(option) && (
+                                                                        <Badge variant="default" className="mr-2">
+                                                                            الإجابة الصحيحة
+                                                                        </Badge>
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        ));
+                                                    })()}
                                                 </div>
                                             </div>
                                         )}

@@ -172,6 +172,16 @@ export default function QuizResultPage({
         if (questionType === "TRUE_FALSE") {
             return answer === "true" ? "صح" : "خطأ";
         }
+        if (questionType === "MULTIPLE_CHOICE") {
+            try {
+                const parsed = JSON.parse(answer);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed.join("، ");
+                }
+            } catch {
+                // single value
+            }
+        }
         return answer;
     };
 
