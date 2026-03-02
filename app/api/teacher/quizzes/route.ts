@@ -199,6 +199,7 @@ export async function POST(req: Request) {
                             type: question.type,
                             options: question.type === "MULTIPLE_CHOICE" ? stringifyQuizOptions(question.options) : null,
                             correctAnswer: correctAnswerValue,
+                            explanation: question.explanation?.trim() || null,
                             points: question.points,
                             imageUrl: question.imageUrl || null,
                             position: index + 1
@@ -250,6 +251,7 @@ export async function POST(req: Request) {
                         type: question.type,
                         options: question.type === "MULTIPLE_CHOICE" ? stringifyQuizOptions(question.options) : null,
                         correctAnswer: correctAnswerValue,
+                        explanation: question.explanation?.trim() || null,
                         points: question.points,
                         imageUrl: question.imageUrl || null,
                         quizId: quiz.id,

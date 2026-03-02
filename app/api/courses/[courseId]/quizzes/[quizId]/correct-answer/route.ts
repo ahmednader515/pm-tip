@@ -40,6 +40,7 @@ export async function GET(
                 type: true,
                 correctAnswer: true,
                 options: true,
+                explanation: true,
             },
         });
 
@@ -62,6 +63,7 @@ export async function GET(
             type,
             correctAnswer: displayAnswer,
             correctAnswerRaw: question.correctAnswer,
+            explanation: question.explanation?.trim() || null,
         });
     } catch (error) {
         console.error("[QUIZ_CORRECT_ANSWER]", error);

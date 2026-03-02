@@ -38,7 +38,8 @@ export async function GET(
                                 type: true,
                                 points: true,
                                 position: true,
-                                imageUrl: true
+                                imageUrl: true,
+                                explanation: true
                             }
                         }
                     },

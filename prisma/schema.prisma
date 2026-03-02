@@ -264,6 +264,7 @@ model Question {
     type String // "MULTIPLE_CHOICE", "TRUE_FALSE", "SHORT_ANSWER"
     options String? @db.Text // JSON string for multiple choice options
     correctAnswer String @db.Text
+    explanation String? @db.Text // Teacher's explanation for the correct answer
     points Int @default(1)
     imageUrl String? @db.Text
     position Int @default(1)

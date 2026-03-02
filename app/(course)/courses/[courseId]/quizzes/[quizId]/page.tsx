@@ -65,6 +65,8 @@ export default function QuizPage({
     const saveDraftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [revealedCorrect, setRevealedCorrect] = useState<Record<string, string>>({});
     const [revealedCorrectTranslated, setRevealedCorrectTranslated] = useState<Record<string, string>>({});
+    const [revealedExplanation, setRevealedExplanation] = useState<Record<string, string>>({});
+    const [revealedExplanationTranslated, setRevealedExplanationTranslated] = useState<Record<string, string>>({});
     const [loadingCorrectId, setLoadingCorrectId] = useState<string | null>(null);
     const [translating, setTranslating] = useState(false);
     const [translatedQuiz, setTranslatedQuiz] = useState<{
@@ -88,13 +90,16 @@ export default function QuizPage({
         };
     }, []);
 
-    // When in translated view, translate any revealed correct answers that aren't translated yet
+    // When in translated view, translate revealed correct answers and explanations
     useEffect(() => {
         if (!translatedQuiz) return;
         const toTranslate = Object.entries(revealedCorrect).filter(
             ([id, text]) => text && !revealedCorrectTranslated[id]
         );
-        if (toTranslate.length === 0) return;
+        const toTranslateExpl = Object.entries(revealedExplanation).filter(
+            ([id, text]) => text && !revealedExplanationTranslated[id]
+        );
+        if (toTranslate.length === 0 && toTranslateExpl.length === 0) return;
         (async () => {
             for (const [questionId, text] of toTranslate) {
                 try {
@@ -113,8 +118,25 @@ export default function QuizPage({
                     // keep original
                 }
             }
+            for (const [questionId, text] of toTranslateExpl) {
+                try {
+                    const res = await fetch("/api/translate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ texts: [text] }),
+                    });
+                    if (res.ok) {
+                        const { translations } = await res.json();
+                        if (Array.isArray(translations) && translations[0]) {
+                            setRevealedExplanationTranslated((prev) => ({ ...prev, [questionId]: translations[0] }));
+                        }
+                    }
+                } catch {
+                    // keep original
+                }
+            }
         })();
-    }, [translatedQuiz, revealedCorrect]);
+    }, [translatedQuiz, revealedCorrect, revealedExplanation]);
 
     useEffect(() => {
         if (quiz?.timer != null && timeLeft > 0) {
@@ -216,6 +238,9 @@ export default function QuizPage({
             if (res.ok) {
                 const data = await res.json();
                 setRevealedCorrect((prev) => ({ ...prev, [questionId]: data.correctAnswer }));
+                if (data.explanation) {
+                    setRevealedExplanation((prev) => ({ ...prev, [questionId]: data.explanation }));
+                }
             } else {
                 toast.error("تعذر تحميل الإجابة الصحيحة");
             }
@@ -570,15 +595,29 @@ export default function QuizPage({
                                             {loadingCorrectId === currentQuestionData.id ? "جاري التحميل..." : "عرض الإجابة الصحيحة"}
                                         </Button>
                                     ) : (
-                                        <div className="rounded-md bg-muted p-3 text-sm">
-                                            <span className="font-medium text-muted-foreground">
-                                                {translatedQuiz ? "Correct answer: " : "الإجابة الصحيحة: "}
-                                            </span>
-                                            <span>
-                                                {translatedQuiz && revealedCorrectTranslated[currentQuestionData.id] != null
-                                                    ? revealedCorrectTranslated[currentQuestionData.id]
-                                                    : revealedCorrect[currentQuestionData.id]}
-                                            </span>
+                                        <div className="rounded-md bg-muted p-3 text-sm space-y-2">
+                                            <div>
+                                                <span className="font-medium text-muted-foreground">
+                                                    {translatedQuiz ? "Correct answer: " : "الإجابة الصحيحة: "}
+                                                </span>
+                                                <span>
+                                                    {translatedQuiz && revealedCorrectTranslated[currentQuestionData.id] != null
+                                                        ? revealedCorrectTranslated[currentQuestionData.id]
+                                                        : revealedCorrect[currentQuestionData.id]}
+                                                </span>
+                                            </div>
+                                            {(revealedExplanation[currentQuestionData.id] || revealedExplanationTranslated[currentQuestionData.id]) && (
+                                                <div className="pt-2 border-t border-muted-foreground/20">
+                                                    <span className="font-medium text-muted-foreground block mb-1">
+                                                        {translatedQuiz ? "Explanation: " : "الشرح: "}
+                                                    </span>
+                                                    <span>
+                                                        {translatedQuiz && revealedExplanationTranslated[currentQuestionData.id] != null
+                                                            ? revealedExplanationTranslated[currentQuestionData.id]
+                                                            : revealedExplanation[currentQuestionData.id]}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

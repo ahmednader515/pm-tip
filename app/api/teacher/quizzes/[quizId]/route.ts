@@ -41,6 +41,7 @@ export async function GET(
                         type: true,
                         options: true,
                         correctAnswer: true,
+                        explanation: true,
                         points: true,
                         imageUrl: true,
                         position: true
@@ -223,6 +224,7 @@ export async function PATCH(
                         type: question.type,
                         options: question.type === "MULTIPLE_CHOICE" ? stringifyQuizOptions(question.options) : null,
                         correctAnswer: correctAnswerValue,
+                        explanation: question.explanation?.trim() || null,
                         points: question.points,
                         imageUrl: question.imageUrl || null,
                         quizId: resolvedParams.quizId,

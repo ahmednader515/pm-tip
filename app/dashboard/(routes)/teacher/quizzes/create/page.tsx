@@ -51,6 +51,7 @@ interface Question {
     type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER";
     options?: string[];
     correctAnswer: string | number | number[]; // TRUE_FALSE/SHORT_ANSWER: string; MULTIPLE_CHOICE: number[] (indices)
+    explanation?: string;
     points: number;
 }
 
@@ -381,6 +382,7 @@ const CreateQuizPage = () => {
             type: "MULTIPLE_CHOICE",
             options: ["", ""],
             correctAnswer: [0],
+            explanation: "",
             points: 1,
         };
         setQuestions([...questions, newQuestion]);
@@ -869,6 +871,17 @@ const CreateQuizPage = () => {
                                         />
                                     </div>
                                 )}
+
+                                <div className="space-y-2">
+                                    <Label>شرح الإجابة الصحيحة (اختياري)</Label>
+                                    <Textarea
+                                        value={question.explanation ?? ""}
+                                        onChange={(e) => updateQuestion(index, "explanation", e.target.value)}
+                                        placeholder="أدخل شرحاً للإجابة الصحيحة يظهر للطالب عند عرض الإجابة"
+                                        rows={3}
+                                        className="resize-none"
+                                    />
+                                </div>
                             </CardContent>
                         </Card>
                     ))}

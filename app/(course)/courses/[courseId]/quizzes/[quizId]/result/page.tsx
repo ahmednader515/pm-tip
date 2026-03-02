@@ -19,6 +19,7 @@ interface QuizAnswer {
         type: string;
         points: number;
         imageUrl?: string | null;
+        explanation?: string | null;
     };
 }
 
@@ -313,6 +314,12 @@ export default function QuizResultPage({
                                                 </p>
                                             </div>
                                         </div>
+                                        {answer.question.explanation?.trim() && (
+                                            <div className="mt-3 pt-3 border-t">
+                                                <span className="font-medium text-muted-foreground">الشرح:</span>
+                                                <p className="text-sm mt-1">{answer.question.explanation}</p>
+                                            </div>
+                                        )}
                                         <div className="mt-2 text-sm">
                                             <span className="font-medium">الدرجات:</span>
                                             <span className="text-muted-foreground">
