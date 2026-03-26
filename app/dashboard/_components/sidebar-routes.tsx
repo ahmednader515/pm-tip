@@ -30,6 +30,11 @@ const guestRoutes = [
         label: "الاختبارات",
         href: "/dashboard/quizzes",
     },
+    {
+        icon: Award,
+        label: "الشهادات",
+        href: "/dashboard/certificates",
+    },
 ];
 
 const teacherRoutes = [

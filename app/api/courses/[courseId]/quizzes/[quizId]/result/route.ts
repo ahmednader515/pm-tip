@@ -30,6 +30,11 @@ export async function GET(
                 attemptNumber: 'desc'
             },
             include: {
+                user: {
+                    select: {
+                        fullName: true,
+                    },
+                },
                 answers: {
                     include: {
                         question: {

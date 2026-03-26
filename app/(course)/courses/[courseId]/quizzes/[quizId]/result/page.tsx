@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, CheckCircle, XCircle, Award } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Award, Download } from "lucide-react";
 
 interface QuizAnswer {
     questionId: string;
@@ -31,6 +31,9 @@ interface QuizResult {
     submittedAt: string;
     attemptNumber: number;
     answers: QuizAnswer[];
+    user?: {
+        fullName?: string;
+    };
 }
 
 interface Quiz {
@@ -39,6 +42,8 @@ interface Quiz {
     maxAttempts: number;
     currentAttempt: number;
     previousAttempts: number;
+    certificateEnabled?: boolean;
+    certificatePassPercentage?: number;
 }
 
 export default function QuizResultPage({
@@ -52,6 +57,7 @@ export default function QuizResultPage({
     const [quiz, setQuiz] = useState<Quiz | null>(null);
     const [loading, setLoading] = useState(true);
     const [willRedirectToDashboard, setWillRedirectToDashboard] = useState(false);
+    const [downloadingCert, setDownloadingCert] = useState(false);
 
     useEffect(() => {
         fetchResult();
@@ -167,7 +173,32 @@ export default function QuizResultPage({
          }
     };
 
+    const downloadCertificate = async () => {
+        if (!quiz || !result) return;
+        setDownloadingCert(true);
+        try {
+            const res = await fetch("/certificate.png", { cache: "no-store" });
+            if (!res.ok) throw new Error("Failed to fetch certificate image");
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `certificate-${quizId}.png`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("[CERTIFICATE_DOWNLOAD]", e);
+        } finally {
+            setDownloadingCert(false);
+        }
+    };
+
     const canRetakeQuiz = quiz && result && (result.attemptNumber < quiz.maxAttempts);
+    const passPercentage = quiz?.certificatePassPercentage ?? 60;
+    const isPassed = result ? result.percentage >= passPercentage : false;
+    const canGetCertificate = Boolean(quiz?.certificateEnabled) && isPassed;
 
     const formatAnswer = (answer: string, questionType: string) => {
         if (questionType === "TRUE_FALSE") {
@@ -333,22 +364,37 @@ export default function QuizResultPage({
                     </Card>
 
                     {/* Actions */}
-                    <div className="flex justify-center gap-4">
-                        {canRetakeQuiz ? (
+                    <div className="flex flex-col items-center gap-4">
+                        {canGetCertificate && (
                             <Button
-                                onClick={handleTryAgain}
-                                className="bg-primary hover:bg-primary/90"
+                                variant="default"
+                                onClick={downloadCertificate}
+                                disabled={downloadingCert}
+                                size="lg"
+                                className="w-full max-w-sm gap-3 px-8 py-8 text-lg bg-brand text-white hover:bg-brand/90 shadow-lg"
                             >
-                                إعادة الاختبار
-                            </Button>
-                        ) : (
-                            <Button
-                                onClick={handleNextChapter}
-                                className="bg-primary hover:bg-primary/90"
-                            >
-                                {willRedirectToDashboard ? "لوحة التحكم" : "الفصل التالي"}
+                                <Download className="h-6 w-6" />
+                                {downloadingCert ? "جاري تجهيز الشهادة..." : "تحميل الشهادة"}
                             </Button>
                         )}
+
+                        <div className="flex justify-center gap-4 flex-wrap">
+                            {canRetakeQuiz ? (
+                                <Button
+                                    onClick={handleTryAgain}
+                                    className="bg-primary hover:bg-primary/90"
+                                >
+                                    إعادة الاختبار
+                                </Button>
+                            ) : (
+                                <Button
+                                    onClick={handleNextChapter}
+                                    className="bg-primary hover:bg-primary/90"
+                                >
+                                    {willRedirectToDashboard ? "لوحة التحكم" : "الفصل التالي"}
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

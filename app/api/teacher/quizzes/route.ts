@@ -64,7 +64,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     try {
         const { userId, user } = await auth();
-        const { title, description, courseId, questions, position, timer, maxAttempts } = await req.json();
+        const { title, description, courseId, questions, position, timer, maxAttempts, certificateEnabled, certificatePassPercentage } = await req.json();
 
         console.log("Received position:", position, "Type:", typeof position);
 
@@ -217,7 +217,9 @@ export async function POST(req: Request) {
             position: Number(quizPosition),
             courseId,
             timer: timer || null,
-            maxAttempts: maxAttempts || 1
+            maxAttempts: maxAttempts || 1,
+            certificateEnabled: Boolean(certificateEnabled),
+            certificatePassPercentage: Math.min(100, Math.max(0, Number(certificatePassPercentage ?? 60))),
         };
         
         console.log("Quiz data without questions:", JSON.stringify(quizDataWithoutQuestions, null, 2));

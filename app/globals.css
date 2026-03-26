@@ -12,6 +12,13 @@ body,
 
 @custom-variant dark (&:is(.dark *));
 
+/* Auto-direction for mixed Arabic/English text.
+   This fixes English punctuation in RTL pages (e.g. commas/periods/question marks). */
+.auto-dir {
+  direction: auto;
+  unicode-bidi: plaintext;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

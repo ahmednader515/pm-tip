@@ -80,6 +80,8 @@ const EditQuizPage = () => {
     const [quizDescription, setQuizDescription] = useState("");
     const [quizTimer, setQuizTimer] = useState<number | null>(null);
     const [quizMaxAttempts, setQuizMaxAttempts] = useState<number>(1);
+    const [certificateEnabled, setCertificateEnabled] = useState(false);
+    const [certificatePassPercentage, setCertificatePassPercentage] = useState<number>(60);
     const [questions, setQuestions] = useState<Question[]>([]);
     const [selectedPosition, setSelectedPosition] = useState<number>(1);
     const [courseItems, setCourseItems] = useState<CourseItem[]>([]);
@@ -126,6 +128,8 @@ const EditQuizPage = () => {
                 setQuizDescription(quiz.description);
                 setQuizTimer(quiz.timer || null);
                 setQuizMaxAttempts(quiz.maxAttempts || 1);
+                setCertificateEnabled(Boolean((quiz as any).certificateEnabled));
+                setCertificatePassPercentage(Number((quiz as any).certificatePassPercentage ?? 60));
                 setSelectedCourse(quiz.courseId);
                 
                 // Convert stored correctAnswer (string or JSON array of option texts) to indices for multiple choice
@@ -388,6 +392,8 @@ const EditQuizPage = () => {
                     position: selectedPosition,
                     timer: quizTimer,
                     maxAttempts: quizMaxAttempts,
+                    certificateEnabled,
+                    certificatePassPercentage,
                 }),
             });
 
@@ -703,6 +709,41 @@ const EditQuizPage = () => {
                         </p>
                     </div>
                 </div>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>الشهادة</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="space-y-1">
+                                <Label>إصدار شهادة بعد النجاح</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    عند تفعيلها سيظهر للطالب زر تحميل الشهادة بعد إنهاء الاختبار وتحقيق نسبة النجاح.
+                                </p>
+                            </div>
+                            <Checkbox
+                                checked={certificateEnabled}
+                                onCheckedChange={(v) => setCertificateEnabled(Boolean(v))}
+                                aria-label="Enable certificate"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>نسبة النجاح للحصول على الشهادة</Label>
+                            <Input
+                                type="number"
+                                value={certificatePassPercentage}
+                                onChange={(e) => setCertificatePassPercentage(Math.min(100, Math.max(0, parseInt(e.target.value || "0"))))}
+                                min="0"
+                                max="100"
+                                disabled={!certificateEnabled}
+                            />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            سيتم استخدام القالب `public/certificate.png` وسيتم كتابة اسم الطالب عليه تلقائياً.
+                        </p>
+                    </CardContent>
+                </Card>
 
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">

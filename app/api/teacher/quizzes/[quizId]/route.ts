@@ -94,7 +94,7 @@ export async function PATCH(
     try {
         const { userId, user } = await auth();
         const resolvedParams = await params;
-        const { title, description, questions, position, timer, maxAttempts, courseId } = await req.json();
+        const { title, description, questions, position, timer, maxAttempts, courseId, certificateEnabled, certificatePassPercentage } = await req.json();
 
         if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -188,7 +188,9 @@ export async function PATCH(
                 courseId: targetCourseId, // Update courseId if changed
                 position: Number(quizPosition), // Explicitly cast to number
                 timer: timer || null,
-                maxAttempts: maxAttempts || 1
+                maxAttempts: maxAttempts || 1,
+                certificateEnabled: Boolean(certificateEnabled),
+                certificatePassPercentage: Math.min(100, Math.max(0, Number(certificatePassPercentage ?? 60))),
             },
             include: {
                 course: {

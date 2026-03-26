@@ -473,8 +473,8 @@ export default function QuizPage({
                     {/* Quiz Info */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>{quiz.title}</CardTitle>
-                            <CardDescription>{quiz.description}</CardDescription>
+                            <CardTitle className="auto-dir">{quiz.title}</CardTitle>
+                            <CardDescription className="auto-dir">{quiz.description}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="w-full bg-muted rounded-full h-2">
@@ -500,7 +500,7 @@ export default function QuizPage({
                                     تم تحديد السؤال — لا يمكن تعديل الإجابة
                                 </div>
                             )}
-                            <div className="text-lg">
+                            <div className="text-lg auto-dir">
                                 {translatedQuiz?.questions[currentQuestion]?.text ?? currentQuestionData.text}
                             </div>
 
@@ -541,7 +541,7 @@ export default function QuizPage({
                                                         disabled={isLocked}
                                                         onCheckedChange={() => handleMultipleChoiceToggle(currentQuestionData.id, origOption)}
                                                     />
-                                                    <Label htmlFor={`option-${currentQuestionData.id}-${index}`} className="cursor-pointer flex-1">{option}</Label>
+                                                    <Label htmlFor={`option-${currentQuestionData.id}-${index}`} className="cursor-pointer flex-1 auto-dir">{option}</Label>
                                                 </div>
                                             );
                                         });
