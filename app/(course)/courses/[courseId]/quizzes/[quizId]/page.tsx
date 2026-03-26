@@ -56,8 +56,8 @@ export default function QuizPage({
     const [navigation, setNavigation] = useState<{
         nextContentId: string | null;
         previousContentId: string | null;
-        nextContentType: 'chapter' | 'quiz' | null;
-        previousContentType: 'chapter' | 'quiz' | null;
+        nextContentType: 'chapter' | 'quiz' | 'certificate' | null;
+        previousContentType: 'chapter' | 'quiz' | 'certificate' | null;
     } | null>(null);
     const [redirectToResult, setRedirectToResult] = useState(false);
     const [savingDraft, setSavingDraft] = useState(false);
@@ -362,6 +362,8 @@ export default function QuizPage({
                 router.push(`/courses/${courseId}/chapters/${navigation.nextContentId}`);
             } else if (navigation.nextContentType === 'quiz') {
                 router.push(`/courses/${courseId}/quizzes/${navigation.nextContentId}`);
+            } else if (navigation.nextContentType === 'certificate') {
+                router.push(`/courses/${courseId}/certificate`);
             }
             router.refresh();
         }
@@ -373,6 +375,8 @@ export default function QuizPage({
                 router.push(`/courses/${courseId}/chapters/${navigation.previousContentId}`);
             } else if (navigation.previousContentType === 'quiz') {
                 router.push(`/courses/${courseId}/quizzes/${navigation.previousContentId}`);
+            } else if (navigation.previousContentType === 'certificate') {
+                router.push(`/courses/${courseId}/certificate`);
             }
             router.refresh();
         }

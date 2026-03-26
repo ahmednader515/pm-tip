@@ -42,6 +42,7 @@ model Course {
   description String? @db.Text
   imageUrl String? @db.Text
   price Float?
+  certificateEnabled Boolean @default(false)
   isPublished Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

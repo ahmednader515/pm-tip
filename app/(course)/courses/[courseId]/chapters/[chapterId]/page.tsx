@@ -21,8 +21,8 @@ interface Chapter {
   documentName: string | null;
   nextChapterId?: string;
   previousChapterId?: string;
-  nextContentType?: 'chapter' | 'quiz' | null;
-  previousContentType?: 'chapter' | 'quiz' | null;
+  nextContentType?: 'chapter' | 'quiz' | 'certificate' | null;
+  previousContentType?: 'chapter' | 'quiz' | 'certificate' | null;
   attachments?: {
     id: string;
     name: string;
@@ -207,6 +207,8 @@ const ChapterPage = () => {
     if (chapter?.nextChapterId) {
       if (chapter.nextContentType === 'quiz') {
         router.push(`/courses/${routeParams.courseId}/quizzes/${chapter.nextChapterId}`);
+      } else if (chapter.nextContentType === 'certificate') {
+        router.push(`/courses/${routeParams.courseId}/certificate`);
       } else {
         router.push(`/courses/${routeParams.courseId}/chapters/${chapter.nextChapterId}`);
       }
@@ -217,6 +219,8 @@ const ChapterPage = () => {
     if (chapter?.previousChapterId) {
       if (chapter.previousContentType === 'quiz') {
         router.push(`/courses/${routeParams.courseId}/quizzes/${chapter.previousChapterId}`);
+      } else if (chapter.previousContentType === 'certificate') {
+        router.push(`/courses/${routeParams.courseId}/certificate`);
       } else {
         router.push(`/courses/${routeParams.courseId}/chapters/${chapter.previousChapterId}`);
       }

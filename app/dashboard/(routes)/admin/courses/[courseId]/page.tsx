@@ -8,6 +8,7 @@ import { DescriptionForm } from "@/app/dashboard/(routes)/teacher/courses/[cours
 import { ImageForm } from "@/app/dashboard/(routes)/teacher/courses/[courseId]/_components/image-form";
 import { PriceForm } from "@/app/dashboard/(routes)/teacher/courses/[courseId]/_components/price-form";
 import { CourseContentForm } from "@/app/dashboard/(routes)/teacher/courses/[courseId]/_components/course-content-form";
+import { CertificateForm } from "@/app/dashboard/(routes)/teacher/courses/[courseId]/_components/certificate-form";
 import { Banner } from "@/components/banner";
 import { Actions } from "@/app/dashboard/(routes)/teacher/courses/[courseId]/_components/actions";
 
@@ -143,6 +144,10 @@ export default async function AdminCourseIdPage({
                             courseId={course.id}
                         />
                         <PriceForm
+                            initialData={course}
+                            courseId={course.id}
+                        />
+                        <CertificateForm
                             initialData={course}
                             courseId={course.id}
                         />

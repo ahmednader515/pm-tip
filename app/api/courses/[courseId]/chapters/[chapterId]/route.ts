@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasCourseAccess } from "@/lib/course-access";
+import { getCourseCertificateStatus } from "@/lib/course-certificate";
+
+type SortedContentItem = {
+  id: string;
+  position: number;
+  type: "chapter" | "quiz" | "certificate";
+};
 
 export async function GET(
   req: Request,
@@ -90,7 +97,17 @@ export async function GET(
     const quizzesWithType = quizzes.map(quiz => ({ ...quiz, type: 'quiz' as const }));
 
     // Combine and sort by position
-    const sortedContent = [...chaptersWithType, ...quizzesWithType].sort((a, b) => a.position - b.position);
+    const sortedContent: SortedContentItem[] = [...chaptersWithType, ...quizzesWithType].sort((a, b) => a.position - b.position);
+
+    const certStatus = await getCourseCertificateStatus(userId, courseId);
+    if (certStatus?.certificateEnabled) {
+      const maxPosition = sortedContent.length ? Math.max(...sortedContent.map((c) => c.position || 0)) : 0;
+      sortedContent.push({
+        id: "certificate",
+        position: maxPosition + 1,
+        type: "certificate" as const,
+      });
+    }
 
     // Find current chapter index
     const currentIndex = sortedContent.findIndex(content => 

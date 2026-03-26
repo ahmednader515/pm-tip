@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { CheckCircle, Circle } from "lucide-react";
+import { CheckCircle, Circle, Award } from "lucide-react";
 import axios from "axios";
 import { cn } from "@/lib/utils";
 
@@ -15,24 +15,13 @@ interface Chapter {
   }[];
 }
 
-interface Quiz {
-  id: string;
-  title: string;
-  position: number;
-  quizResults: {
-    id: string;
-    score: number;
-    totalPoints: number;
-    percentage: number;
-  }[];
-}
-
 interface CourseContent {
   id: string;
   title: string;
   position: number;
-  type: 'chapter' | 'quiz';
+  type: 'chapter' | 'quiz' | 'certificate';
   isFree?: boolean;
+  isEligible?: boolean;
   userProgress?: {
     isCompleted: boolean;
   }[];
@@ -107,6 +96,8 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
         router.push(`/courses/${courseId}/chapters/${content.id}`);
       } else if (content.type === 'quiz') {
         router.push(`/courses/${courseId}/quizzes/${content.id}`);
+      } else if (content.type === 'certificate') {
+        router.push(`/courses/${courseId}/certificate`);
       }
       router.refresh();
     }
@@ -148,7 +139,9 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
           const isSelected = selectedContentId === content.id;
           const isCompleted = content.type === 'chapter' 
             ? content.userProgress?.[0]?.isCompleted || false
-            : content.quizResults && content.quizResults.length > 0;
+            : content.type === 'quiz'
+            ? Boolean(content.quizResults && content.quizResults.length > 0)
+            : Boolean(content.isEligible);
           
           return (
             <div
@@ -162,7 +155,9 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
               )}
               onClick={() => onClick(content)}
             >
-              {isCompleted ? (
+              {content.type === "certificate" ? (
+                <Award className={cn("h-4 w-4", isCompleted ? "text-emerald-600" : "")} />
+              ) : isCompleted ? (
                 <CheckCircle className="h-4 w-4 text-emerald-600" />
               ) : (
                 <Circle className="h-4 w-4" />
@@ -171,6 +166,9 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
                 {content.title}
                 {content.type === 'quiz' && (
                   <span className="ml-2 text-xs text-green-600">(اختبار)</span>
+                )}
+                {content.type === 'certificate' && (
+                  <span className="ml-2 text-xs text-brand">(شهادة)</span>
                 )}
               </span>
               {content.type === 'chapter' && content.isFree && (

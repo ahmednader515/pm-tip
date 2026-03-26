@@ -1,5 +1,15 @@
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { getCourseCertificateStatus } from "@/lib/course-certificate";
+
+type CourseContentItem = {
+    id: string;
+    position: number;
+    type: "chapter" | "quiz" | "certificate";
+    title?: string;
+    isEligible?: boolean;
+};
 
 export async function GET(
     req: Request,
@@ -7,6 +17,10 @@ export async function GET(
 ) {
     try {
         const resolvedParams = await params;
+        const { userId } = await auth();
+        if (!userId) {
+            return new NextResponse("Unauthorized", { status: 401 });
+        }
 
         // Get chapters
         const chapters = await db.chapter.findMany({
@@ -16,6 +30,7 @@ export async function GET(
             },
             include: {
                 userProgress: {
+                    where: { userId },
                     select: {
                         isCompleted: true
                     }
@@ -34,6 +49,7 @@ export async function GET(
             },
             include: {
                 quizResults: {
+                    where: { studentId: userId },
                     select: {
                         id: true,
                         score: true,
@@ -48,7 +64,7 @@ export async function GET(
         });
 
         // Combine and sort by position
-        const allContent = [
+        const allContent: CourseContentItem[] = [
             ...chapters.map(chapter => ({
                 ...chapter,
                 type: 'chapter' as const
@@ -58,6 +74,18 @@ export async function GET(
                 type: 'quiz' as const
             }))
         ].sort((a, b) => a.position - b.position);
+
+        const certStatus = await getCourseCertificateStatus(userId, resolvedParams.courseId);
+        if (certStatus?.certificateEnabled) {
+            const maxPosition = allContent.length ? Math.max(...allContent.map((c) => c.position || 0)) : 0;
+            allContent.push({
+                id: "certificate",
+                title: "الشهادة",
+                position: maxPosition + 1,
+                type: "certificate",
+                isEligible: certStatus.eligible,
+            });
+        }
 
         return NextResponse.json(allContent);
     } catch (error) {

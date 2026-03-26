@@ -8,6 +8,7 @@ import { DescriptionForm } from "./_components/description-form";
 import { ImageForm } from "./_components/image-form";
 import { PriceForm } from "./_components/price-form";
 import { CourseContentForm } from "./_components/course-content-form";
+import { CertificateForm } from "./_components/certificate-form";
 import { Banner } from "@/components/banner";
 import { Actions } from "./_components/actions";
 
@@ -143,6 +144,10 @@ export default async function CourseIdPage({
                             courseId={course.id}
                         />
                         <PriceForm
+                            initialData={course}
+                            courseId={course.id}
+                        />
+                        <CertificateForm
                             initialData={course}
                             courseId={course.id}
                         />

@@ -1,6 +1,7 @@
-import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { getAccessibleCourseIdsIncludingFree } from "@/lib/course-access";
+import { getCourseCertificateStatus } from "@/lib/course-certificate";
 
 export async function GET() {
     try {
@@ -9,63 +10,26 @@ export async function GET() {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        // Earned certificate = quiz has certificate enabled AND student's best attempt >= pass percentage
-        const results = await db.quizResult.findMany({
-            where: {
-                studentId: userId,
-                quiz: {
-                    isPublished: true,
-                    certificateEnabled: true,
-                },
-            },
-            include: {
-                quiz: {
-                    select: {
-                        id: true,
-                        title: true,
-                        courseId: true,
-                        certificatePassPercentage: true,
-                        course: { select: { title: true } },
-                    },
-                },
-            },
-            orderBy: { submittedAt: "desc" },
-        });
+        const accessible = await getAccessibleCourseIdsIncludingFree(userId);
+        if (accessible.size === 0) return NextResponse.json([]);
 
-        const bestByQuiz = new Map<
-            string,
-            {
-                quizId: string;
-                courseId: string;
-                courseTitle: string;
-                quizTitle: string;
-                percentage: number;
-                passPercentage: number;
-                submittedAt: string;
-            }
-        >();
+        const courseIds = Array.from(accessible);
+        const statuses = await Promise.all(courseIds.map((courseId) => getCourseCertificateStatus(userId, courseId)));
 
-        for (const r of results) {
-            const pass = r.quiz.certificatePassPercentage ?? 60;
-            if (r.percentage < pass) continue;
+        const earned = statuses
+            .filter((s): s is NonNullable<typeof s> => Boolean(s))
+            .filter((s) => s.certificateEnabled && s.eligible)
+            .map((s) => ({
+                courseId: s.courseId,
+                courseTitle: s.courseTitle,
+                totalChapters: s.totalChapters,
+                completedChapters: s.completedChapters,
+                totalQuizzes: s.totalQuizzes,
+                completedQuizzes: s.completedQuizzes,
+                completedAt: s.latestQuizSubmissionAt,
+            }));
 
-            const prev = bestByQuiz.get(r.quizId);
-            const candidate = {
-                quizId: r.quiz.id,
-                courseId: r.quiz.courseId,
-                courseTitle: r.quiz.course.title,
-                quizTitle: r.quiz.title,
-                percentage: r.percentage,
-                passPercentage: pass,
-                submittedAt: r.submittedAt.toISOString(),
-            };
-
-            if (!prev || candidate.percentage > prev.percentage) {
-                bestByQuiz.set(r.quizId, candidate);
-            }
-        }
-
-        return NextResponse.json(Array.from(bestByQuiz.values()));
+        return NextResponse.json(earned);
     } catch (error) {
         console.log("[STUDENT_CERTIFICATES_GET]", error);
         return new NextResponse("Internal Error", { status: 500 });
