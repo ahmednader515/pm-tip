@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { randomBytes } from "crypto";
+import { clampDiscountPercent } from "@/lib/promo-code";
 
 // Generate unique code
 function generateCode(): string {
@@ -65,7 +66,9 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Forbidden", { status: 403 });
     }
 
-    const { courseId, count } = await req.json();
+    const body = await req.json();
+    const { courseId, count } = body;
+    const discountPercent = clampDiscountPercent(body.discountPercent, 100);
 
     if (!courseId || !count || count < 1 || count > 100) {
       return new NextResponse("Invalid request: courseId and count (1-100) required", { status: 400 });
@@ -102,6 +105,7 @@ export async function POST(req: NextRequest) {
         courseId,
         createdBy: userId,
         isUsed: false,
+        discountPercent,
       });
     }
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { priceAfterDiscountPercent } from "@/lib/promo-code";
 
-// POST - Redeem a code
+// POST - Redeem a code (promo: optional % discount; balance charged for remainder)
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
@@ -17,11 +18,16 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Code is required", { status: 400 });
     }
 
-    // Find the code
     const purchaseCode = await db.purchaseCode.findUnique({
-      where: { code: code.toUpperCase() },
+      where: { code: code.toUpperCase().trim() },
       include: {
-        course: true,
+        course: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+          },
+        },
       },
     });
 
@@ -33,7 +39,6 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Code has already been used", { status: 400 });
     }
 
-    // Check if user already purchased this course
     const existingPurchase = await db.purchase.findUnique({
       where: {
         userId_courseId: {
@@ -47,9 +52,32 @@ export async function POST(req: NextRequest) {
       return new NextResponse("You have already purchased this course", { status: 400 });
     }
 
-    // Use transaction to ensure atomicity
+    const amountDue = priceAfterDiscountPercent(
+      purchaseCode.course.price,
+      purchaseCode.discountPercent
+    );
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { balance: true },
+    });
+
+    if (!user) {
+      return new NextResponse("User not found", { status: 404 });
+    }
+
+    if (amountDue > 0 && user.balance < amountDue) {
+      return NextResponse.json(
+        {
+          error: "Insufficient balance",
+          amountDue,
+          balance: user.balance,
+        },
+        { status: 400 }
+      );
+    }
+
     const result = await db.$transaction(async (tx) => {
-      // Mark code as used
       await tx.purchaseCode.update({
         where: { id: purchaseCode.id },
         data: {
@@ -59,7 +87,6 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Delete any existing failed purchase
       if (existingPurchase && existingPurchase.status === "FAILED") {
         await tx.purchase.delete({
           where: {
@@ -68,7 +95,6 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // Create the purchase
       const purchase = await tx.purchase.create({
         data: {
           userId,
@@ -78,7 +104,33 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      if (amountDue > 0) {
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            balance: { decrement: amountDue },
+          },
+        });
+
+        await tx.balanceTransaction.create({
+          data: {
+            userId,
+            amount: -amountDue,
+            type: "PURCHASE",
+            description:
+              purchaseCode.discountPercent >= 100
+                ? `شراء الكورس بكود ترويجي (خصم كامل): ${purchaseCode.course.title}`
+                : `شراء الكورس بكود ترويجي (خصم ${purchaseCode.discountPercent}%): ${purchaseCode.course.title}`,
+          },
+        });
+      }
+
       return { purchase };
+    });
+
+    const updatedUser = await db.user.findUnique({
+      where: { id: userId },
+      select: { balance: true },
     });
 
     return NextResponse.json({
@@ -88,6 +140,9 @@ export async function POST(req: NextRequest) {
         id: purchaseCode.course.id,
         title: purchaseCode.course.title,
       },
+      discountPercent: purchaseCode.discountPercent,
+      amountCharged: amountDue,
+      newBalance: updatedUser?.balance ?? user.balance,
     });
   } catch (error) {
     console.error("[REDEEM_CODE]", error);
@@ -97,4 +152,3 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
-

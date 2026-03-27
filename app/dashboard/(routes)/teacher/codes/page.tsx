@@ -24,6 +24,7 @@ interface PurchaseCode {
   id: string;
   code: string;
   courseId: string;
+  discountPercent: number;
   isUsed: boolean;
   usedAt: string | null;
   createdAt: string;
@@ -46,6 +47,7 @@ const TeacherCodesPage = () => {
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [selectedCourse, setSelectedCourse] = useState<string>("");
   const [codeCount, setCodeCount] = useState<string>("1");
+  const [discountPercent, setDiscountPercent] = useState<string>("100");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -91,6 +93,11 @@ const TeacherCodesPage = () => {
       toast.error("يرجى اختيار الكورس وعدد الأكواد (1-100)");
       return;
     }
+    const d = parseInt(discountPercent, 10);
+    if (Number.isNaN(d) || d < 0 || d > 100) {
+      toast.error("نسبة الخصم يجب أن تكون بين 0 و 100");
+      return;
+    }
 
     setIsGenerating(true);
     try {
@@ -102,6 +109,7 @@ const TeacherCodesPage = () => {
         body: JSON.stringify({
           courseId: selectedCourse,
           count: parseInt(codeCount),
+          discountPercent: d,
         }),
       });
 
@@ -111,6 +119,7 @@ const TeacherCodesPage = () => {
         setIsDialogOpen(false);
         setSelectedCourse("");
         setCodeCount("1");
+        setDiscountPercent("100");
         fetchCodes(); // Refresh the list
       } else {
         const error = await response.text();
@@ -241,6 +250,7 @@ const TeacherCodesPage = () => {
                 <TableRow>
                   <TableHead className="text-right">الكود</TableHead>
                   <TableHead className="text-right">الكورس</TableHead>
+                  <TableHead className="text-right">خصم %</TableHead>
                   <TableHead className="text-right">الحالة</TableHead>
                   <TableHead className="text-right">المستخدم</TableHead>
                   <TableHead className="text-right">تاريخ الاستخدام</TableHead>
@@ -271,6 +281,9 @@ const TeacherCodesPage = () => {
                       </div>
                     </TableCell>
                     <TableCell>{code.course.title}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{code.discountPercent ?? 100}%</Badge>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={code.isUsed ? "secondary" : "default"}>
                         {code.isUsed ? "مستخدم" : "غير مستخدم"}
@@ -344,6 +357,21 @@ const TeacherCodesPage = () => {
                 onChange={(e) => setCodeCount(e.target.value)}
                 placeholder="1-100"
               />
+            </div>
+            <div>
+              <Label htmlFor="discount" className="mb-2 block">نسبة الخصم (%)</Label>
+              <Input
+                id="discount"
+                type="number"
+                min="0"
+                max="100"
+                value={discountPercent}
+                onChange={(e) => setDiscountPercent(e.target.value)}
+                placeholder="0–100 (100 = مجاني بالكامل)"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                المبلغ المدفوع = سعر الكورس × (100 − النسبة) ÷ 100
+              </p>
             </div>
           </div>
           <DialogFooter>

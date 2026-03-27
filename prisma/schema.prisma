@@ -154,6 +154,7 @@ model PurchaseCode {
     usedBy String? // User ID who used the code
     usedAt DateTime? // When the code was used
     isUsed Boolean @default(false)
+    discountPercent Int @default(100) // 0–100; amount paid = price × (1 - discount/100)
     course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
     creator User @relation("CodeCreator", fields: [createdBy], references: [id], onDelete: Cascade)
     user User? @relation("CodeUser", fields: [usedBy], references: [id], onDelete: SetNull)

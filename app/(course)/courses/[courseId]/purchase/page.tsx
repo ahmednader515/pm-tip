@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { auth } from "@/lib/auth";
 import { ArrowLeft, CreditCard, Wallet, AlertCircle, Ticket, Check } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -89,21 +88,48 @@ export default function PurchasePage({
 
       if (response.ok) {
         const data = await response.json();
-        toast.success("تم استبدال الكود بنجاح! تم شراء الكورس");
+        const charged = typeof data.amountCharged === "number" ? data.amountCharged : 0;
+        const discount =
+          typeof data.discountPercent === "number" ? data.discountPercent : 0;
+        if (charged > 0) {
+          toast.success(
+            `تم تطبيق الكود (خصم ${discount}٪). تم خصم ${charged.toFixed(2)} جنيه وشراء الكورس`
+          );
+        } else {
+          toast.success("تم استبدال الكود بنجاح! تم شراء الكورس");
+        }
         setCodeRedeemed(true);
         setTimeout(() => {
           router.push("/dashboard");
         }, 1500);
       } else {
-        const error = await response.text();
-        if (error.includes("already been used")) {
+        const raw = await response.text();
+        let message = raw;
+        try {
+          const errJson = JSON.parse(raw) as {
+            error?: string;
+            amountDue?: number;
+          };
+          if (errJson?.error === "Insufficient balance" && typeof errJson.amountDue === "number") {
+            message = `رصيد غير كافٍ. المطلوب بعد الخصم: ${errJson.amountDue.toFixed(2)} جنيه`;
+          } else if (errJson?.error) {
+            message = String(errJson.error);
+          }
+        } catch {
+          /* plain text body */
+        }
+        if (message.includes("already been used")) {
           toast.error("هذا الكود مستخدم بالفعل");
-        } else if (error.includes("already purchased")) {
+        } else if (message.includes("already purchased")) {
           toast.error("لقد قمت بشراء هذه الكورس مسبقاً");
-        } else if (error.includes("Invalid code")) {
+        } else if (message.includes("Invalid code")) {
           toast.error("كود غير صحيح");
+        } else if (message.includes("رصيد غير كاف")) {
+          toast.error(message);
+        } else if (message.includes("Insufficient balance")) {
+          toast.error("رصيد غير كافٍ لتكميل الشراء بعد تطبيق الخصم");
         } else {
-          toast.error(error || "حدث خطأ أثناء استبدال الكود");
+          toast.error(message || "حدث خطأ أثناء استبدال الكود");
         }
       }
     } catch (error) {
@@ -244,7 +270,7 @@ export default function PurchasePage({
                 لديك كود خصم؟
               </CardTitle>
               <CardDescription>
-                أدخل الكود للحصول على الكورس مجاناً
+                أدخل كود الخصم. إن لم يكن الخصم 100٪، سيُخصم من رصيدك المبلغ المتبقي بعد الخصم
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
