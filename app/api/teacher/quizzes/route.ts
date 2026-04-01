@@ -219,7 +219,7 @@ export async function POST(req: Request) {
             timer: timer || null,
             maxAttempts: maxAttempts || 1,
             certificateEnabled: Boolean(certificateEnabled),
-            certificatePassPercentage: Math.min(100, Math.max(0, Number(certificatePassPercentage ?? 60))),
+            certificatePassPercentage: Math.min(100, Math.max(0, Number(certificatePassPercentage ?? 75))),
         };
         
         console.log("Quiz data without questions:", JSON.stringify(quizDataWithoutQuestions, null, 2));

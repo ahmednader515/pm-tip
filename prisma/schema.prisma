@@ -236,7 +236,7 @@ model Quiz {
     timer Int? // Timer in minutes, null means no time limit
     maxAttempts Int @default(1) // Maximum number of attempts allowed
     certificateEnabled Boolean @default(false)
-    certificatePassPercentage Int @default(60)
+    certificatePassPercentage Int @default(75)
     courseId String
     course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
     questions Question[]

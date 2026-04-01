@@ -8,13 +8,23 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, GripVertical, X, Mic } from "lucide-react";
+import { Plus, Trash2, GripVertical, X, Mic, FileSpreadsheet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter, useParams, usePathname } from "next/navigation";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { UploadDropzone } from "@/lib/uploadthing";
 import { parseCorrectAnswer } from "@/lib/utils";
+import * as XLSX from "xlsx";
+// Needed for correct non-English decoding in legacy .xls files (BIFF)
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import * as cptable from "xlsx/dist/cpexcel.full.mjs";
+
+// Wire the codepage tables once
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if (typeof (XLSX as any).set_cptable === "function") (XLSX as any).set_cptable(cptable);
 
 interface Course {
     id: string;
@@ -90,6 +100,155 @@ const EditQuizPage = () => {
     const [uploadingImages, setUploadingImages] = useState<{ [key: string]: boolean }>({});
     const [listeningQuestionId, setListeningQuestionId] = useState<string | null>(null);
     const recognitionRef = useRef<any>(null);
+    const [importingExcel, setImportingExcel] = useState(false);
+
+    const normalizeType = (raw: unknown): Question["type"] => {
+        const v = String(raw ?? "").trim().toUpperCase();
+        if (v === "MCQ" || v === "MULTIPLE_CHOICE" || v === "MULTIPLE" || v === "CHOICE" || v === "اختيار" || v === "اختيار من متعدد") return "MULTIPLE_CHOICE";
+        if (v === "TF" || v === "TRUE_FALSE" || v === "TRUE/FALSE" || v === "صح/خطأ" || v === "صح" || v === "خطأ") return "TRUE_FALSE";
+        if (v === "SHORT" || v === "SHORT_ANSWER" || v === "SA" || v === "إجابة قصيرة") return "SHORT_ANSWER";
+        return "MULTIPLE_CHOICE";
+    };
+
+    const splitOptions = (raw: unknown): string[] => {
+        if (raw == null) return [];
+        if (Array.isArray(raw)) return raw.map(String).map((s) => s.trim()).filter(Boolean);
+        const s = String(raw).trim();
+        if (!s) return [];
+        return s
+            .split(/[\|\;\n,]+/g)
+            .map((x) => x.trim())
+            .filter(Boolean);
+    };
+
+    const parseCorrectIndices = (raw: unknown, options: string[]): number[] => {
+        const s = String(raw ?? "").trim();
+        if (!s) return [0];
+        const parts = s.split(/[\|\;\n,]+/g).map((x) => x.trim()).filter(Boolean);
+        const indices: number[] = [];
+        for (const p of parts) {
+            const asNum = Number(p);
+            if (!Number.isNaN(asNum) && Number.isFinite(asNum)) {
+                const idx = Math.round(asNum) - 1;
+                if (idx >= 0 && idx < options.length) indices.push(idx);
+                continue;
+            }
+            const idx = options.findIndex((o) => o.trim() === p);
+            if (idx >= 0) indices.push(idx);
+        }
+        const unique = Array.from(new Set(indices)).sort((a, b) => a - b);
+        return unique.length ? unique : [0];
+    };
+
+    const parseTrueFalse = (raw: unknown): "true" | "false" => {
+        const s = String(raw ?? "").trim().toLowerCase();
+        if (s === "true" || s === "1" || s === "صح" || s === "صحيح" || s === "yes" || s === "y") return "true";
+        return "false";
+    };
+
+    const importQuestionsFromExcel = async (file: File) => {
+        setImportingExcel(true);
+        try {
+            const ext = file.name.split(".").pop()?.toLowerCase();
+            if (ext !== "xlsx") {
+                toast.error("يرجى رفع ملف Excel بصيغة .xlsx فقط (لضمان دعم العربية بدون مشاكل ترميز).");
+                return;
+            }
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: "array" });
+            const sheetName = wb.SheetNames[0];
+            const sheet = wb.Sheets[sheetName];
+            if (!sheet) throw new Error("No sheet");
+
+            const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+            if (!rows.length) {
+                toast.error("ملف الإكسل فارغ");
+                return;
+            }
+
+            const normalizeKey = (k: string) => k.trim().toLowerCase();
+            const get = (row: Record<string, unknown>, key: string) => {
+                const want = normalizeKey(key);
+                const found = Object.keys(row).find((rk) => normalizeKey(rk) === want);
+                return found ? row[found] : "";
+            };
+
+            const imported: Question[] = [];
+            const errors: string[] = [];
+
+            rows.forEach((row, idx) => {
+                const rowNum = idx + 2;
+                const text = String(get(row, "text") ?? "").trim();
+                if (!text) {
+                    errors.push(`صف ${rowNum}: text مطلوب`);
+                    return;
+                }
+
+                const type = normalizeType(get(row, "type"));
+                const pointsRaw = get(row, "points");
+                const points = Math.max(1, Number(pointsRaw) ? Math.floor(Number(pointsRaw)) : 1);
+                const explanation = String(get(row, "explanation") ?? "").trim();
+
+                if (type === "MULTIPLE_CHOICE") {
+                    const options = splitOptions(get(row, "options"));
+                    if (options.length < 2) {
+                        errors.push(`صف ${rowNum}: options يجب أن يحتوي على خيارين على الأقل (افصل بـ |)`);
+                        return;
+                    }
+                    const correct = parseCorrectIndices(get(row, "correct"), options);
+                    imported.push({
+                        id: `import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+                        text,
+                        type,
+                        options,
+                        correctAnswer: correct,
+                        explanation,
+                        points,
+                    });
+                } else if (type === "TRUE_FALSE") {
+                    const correct = parseTrueFalse(get(row, "correct"));
+                    imported.push({
+                        id: `import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+                        text,
+                        type,
+                        correctAnswer: correct,
+                        explanation,
+                        points,
+                    });
+                } else {
+                    const correct = String(get(row, "correct") ?? "").trim();
+                    if (!correct) {
+                        errors.push(`صف ${rowNum}: correct مطلوب لـ SHORT_ANSWER`);
+                        return;
+                    }
+                    imported.push({
+                        id: `import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+                        text,
+                        type,
+                        correctAnswer: correct,
+                        explanation,
+                        points,
+                    });
+                }
+            });
+
+            if (errors.length) {
+                toast.error(errors.slice(0, 6).join("\n") + (errors.length > 6 ? `\n... وعدد ${errors.length - 6} أخطاء أخرى` : ""));
+            }
+
+            if (imported.length) {
+                setQuestions((prev) => [...prev, ...imported]);
+                toast.success(`تم استيراد ${imported.length} سؤال`);
+            } else if (!errors.length) {
+                toast.error("لم يتم استيراد أي أسئلة");
+            }
+        } catch (e) {
+            console.error("[IMPORT_EXCEL]", e);
+            toast.error("فشل استيراد ملف الإكسل");
+        } finally {
+            setImportingExcel(false);
+        }
+    };
 
     useEffect(() => {
         fetchCourses();
@@ -703,6 +862,50 @@ const EditQuizPage = () => {
                         </p>
                     </div>
                 </div>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <FileSpreadsheet className="h-5 w-5" />
+                            استيراد الأسئلة من Excel
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Input
+                                type="file"
+                                accept=".xlsx"
+                                disabled={importingExcel}
+                                onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (!f) return;
+                                    importQuestionsFromExcel(f);
+                                    e.currentTarget.value = "";
+                                }}
+                            />
+                        </div>
+
+                        <div className="text-sm text-muted-foreground space-y-2">
+                            <div className="font-medium text-foreground">تنسيق ملف الإكسل (أعمدة مطلوبة):</div>
+                            <ul className="list-disc pr-5 space-y-1">
+                                <li><span className="font-medium">text</span>: نص السؤال</li>
+                                <li><span className="font-medium">type</span>: نوع السؤال: <span className="font-mono">MULTIPLE_CHOICE</span> أو <span className="font-mono">TRUE_FALSE</span> أو <span className="font-mono">SHORT_ANSWER</span></li>
+                                <li><span className="font-medium">points</span>: الدرجات (اختياري، الافتراضي 1)</li>
+                                <li><span className="font-medium">options</span>: (لـ MULTIPLE_CHOICE فقط) الخيارات مفصولة بـ <span className="font-mono">|</span> مثل <span className="font-mono">A|B|C|D</span></li>
+                                <li><span className="font-medium">correct</span>:</li>
+                                <ul className="list-disc pr-5">
+                                    <li>لـ MULTIPLE_CHOICE: أرقام 1-based مفصولة بـ <span className="font-mono">,</span> أو <span className="font-mono">|</span> مثل <span className="font-mono">1</span> أو <span className="font-mono">1,3</span> (يدعم تعدد الإجابات الصحيحة)</li>
+                                    <li>لـ TRUE_FALSE: <span className="font-mono">true</span>/<span className="font-mono">false</span> أو <span className="font-mono">صح</span>/<span className="font-mono">خطأ</span></li>
+                                    <li>لـ SHORT_ANSWER: النص الصحيح</li>
+                                </ul>
+                                <li><span className="font-medium">explanation</span>: شرح الإجابة الصحيحة (اختياري)</li>
+                            </ul>
+                            <div className="text-xs">
+                                ملاحظة: يتم قبول ملفات <span className="font-mono">.xlsx</span> فقط لتجنب مشاكل ترميز العربية. أول ورقة فقط يتم قراءتها، وأسماء الأعمدة غير حساسة لحالة الأحرف.
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">

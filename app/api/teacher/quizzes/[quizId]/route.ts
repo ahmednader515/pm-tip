@@ -190,7 +190,7 @@ export async function PATCH(
                 timer: timer || null,
                 maxAttempts: maxAttempts || 1,
                 certificateEnabled: Boolean(certificateEnabled),
-                certificatePassPercentage: Math.min(100, Math.max(0, Number(certificatePassPercentage ?? 60))),
+                certificatePassPercentage: Math.min(100, Math.max(0, Number(certificatePassPercentage ?? 75))),
             },
             include: {
                 course: {
