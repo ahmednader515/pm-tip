@@ -100,13 +100,6 @@ export default function BalancePage() {
   });
   const [isLoadingMethods, setIsLoadingMethods] = useState(true);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
-  const [gatewayFollowUp, setGatewayFollowUp] = useState<{
-    kind: "fawry" | "meeza";
-    code?: string;
-    expireDate?: string;
-    reference?: string;
-    invoiceId?: number;
-  } | null>(null);
 
   // Check if user is a student (USER role)
   const isStudent = session?.user?.role === "USER";
@@ -305,7 +298,6 @@ export default function BalancePage() {
       return;
     }
 
-    setGatewayFollowUp(null);
     setIsInitializingPayment(true);
 
     try {
@@ -361,27 +353,13 @@ export default function BalancePage() {
       }
 
       if (data.fawryCode) {
-        setGatewayFollowUp({
-          kind: "fawry",
-          code: data.fawryCode,
-          expireDate: data.fawryExpireDate,
-          invoiceId: Number.isFinite(invoiceId) ? invoiceId : undefined,
-        });
-        toast.info(
-          "ادفع من خلال منافذ فوري باستخدام الكود أدناه. بعد الدفع سيتم إضافة الرصيد عند استلام الإشعار من Fawaterak."
-        );
+        const expiry = data.fawryExpireDate ? ` — صلاحية الكود: ${data.fawryExpireDate}` : "";
+        toast.info(`كود فوري: ${data.fawryCode}${expiry}`, { duration: 20000 });
         return;
       }
 
       if (data.meezaReference) {
-        setGatewayFollowUp({
-          kind: "meeza",
-          reference: data.meezaReference,
-          invoiceId: Number.isFinite(invoiceId) ? invoiceId : undefined,
-        });
-        toast.info(
-          "أكمل الدفع من تطبيق المحفظة باستخدام المرجع أدناه. سيتم تحديث الرصيد بعد تأكيد البوابة."
-        );
+        toast.info(`مرجع المحفظة: ${data.meezaReference}`, { duration: 20000 });
         return;
       }
 
@@ -561,54 +539,6 @@ export default function BalancePage() {
             >
               {isInitializingPayment ? "جاري بدء الدفع..." : "الدفع عبر Fawaterak"}
             </Button>
-
-            {gatewayFollowUp && (
-              <div
-                className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm space-y-2"
-                role="status"
-              >
-                {gatewayFollowUp.kind === "fawry" ? (
-                  <>
-                    <p className="font-semibold text-amber-950">كود فوري للدفع</p>
-                    <p className="text-amber-900 tabular-nums text-lg font-mono tracking-wide">
-                      {gatewayFollowUp.code}
-                    </p>
-                    {gatewayFollowUp.expireDate && (
-                      <p className="text-amber-800 text-xs">
-                        صلاحية الكود حتى: {gatewayFollowUp.expireDate}
-                      </p>
-                    )}
-                    <p className="text-amber-900 text-xs leading-relaxed">
-                      بعد الدفع في فوري، يصل إشعار إلى خادمنا عبر Webhook فيضاف الرصيد تلقائياً. إن لم يتغير
-                      الرصيد، راجع رابط Webhook في لوحة Fawaterak.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-semibold text-amber-950">مرجع محفظة ميزة / دفع المحفظة</p>
-                    <p className="text-amber-900 tabular-nums text-lg font-mono">
-                      {gatewayFollowUp.reference}
-                    </p>
-                    <p className="text-amber-900 text-xs leading-relaxed">
-                      أكمل العملية من تطبيق المحفظة. عند نجاح الدفع يُحدَّث الرصيد بعد إشعار البوابة.
-                    </p>
-                  </>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => {
-                    setGatewayFollowUp(null);
-                    void fetchBalance();
-                    void fetchTransactions({ silent: true });
-                  }}
-                >
-                  تحديث الرصيد يدوياً
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
