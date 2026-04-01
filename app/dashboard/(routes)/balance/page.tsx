@@ -6,8 +6,25 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
-import { Wallet, Plus, History, ArrowUpRight, CreditCard, Landmark, CircleDollarSign, CheckCircle2 } from "lucide-react";
+import {
+  Wallet,
+  Plus,
+  History,
+  ArrowUpRight,
+  CreditCard,
+  Landmark,
+  CircleDollarSign,
+  CheckCircle2,
+  Smartphone,
+  Building2,
+  Copy,
+} from "lucide-react";
 import { Label } from "@/components/ui/label";
+import {
+  SHOW_FAWATERAK_GATEWAY,
+  MANUAL_VODAFONE_CASH_NUMBER,
+  MANUAL_INSTAPAY_NUMBER,
+} from "@/lib/balance-payment-display";
 
 interface BalanceTransaction {
   id: string;
@@ -148,8 +165,10 @@ export default function BalancePage() {
   useEffect(() => {
     fetchBalance();
     fetchTransactions();
-    if (isStudent) {
+    if (isStudent && SHOW_FAWATERAK_GATEWAY) {
       fetchPaymentMethods();
+    } else if (isStudent) {
+      setIsLoadingMethods(false);
     }
   }, [isStudent, fetchBalance, fetchTransactions]);
 
@@ -415,6 +434,16 @@ export default function BalancePage() {
     }
   };
 
+  const copyToClipboard = async (text: string, label: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`تم نسخ ${label}`);
+    } catch {
+      toast.error("تعذر النسخ من المتصفح");
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("ar-EG", {
       year: "numeric",
@@ -492,8 +521,88 @@ export default function BalancePage() {
         </Card>
       )}
 
-      {/* Payment Deposit Section - Only for students */}
-      {isStudent && (
+      {/* Manual transfer (Vodafone Cash / Instapay) — shown when gateway UI is off */}
+      {isStudent && !SHOW_FAWATERAK_GATEWAY && (
+        <Card className="border-brand/20 bg-brand/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-brand" />
+              شحن الرصيد
+            </CardTitle>
+            <CardDescription>
+              حوّل المبلغ عبر إحدى الطرق أدناه، ثم أرسل إيصال التحويل للإدارة ليتم إضافة الرصيد لحسابك.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2 rounded-lg border bg-background p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Smartphone className="h-4 w-4 text-brand" />
+                فودافون كاش
+              </div>
+              {MANUAL_VODAFONE_CASH_NUMBER ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-lg dir-ltr tracking-wide" dir="ltr">
+                    {MANUAL_VODAFONE_CASH_NUMBER}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() =>
+                      copyToClipboard(MANUAL_VODAFONE_CASH_NUMBER, "رقم فودافون كاش")
+                    }
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    نسخ
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  لم يُضبط رقم فودافون كاش بعد. أضف{" "}
+                  <span className="font-mono text-xs">NEXT_PUBLIC_MANUAL_VODAFONE_CASH_NUMBER</span>{" "}
+                  في إعدادات البيئة.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2 rounded-lg border bg-background p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Building2 className="h-4 w-4 text-brand" />
+                إنستاباي (Instapay)
+              </div>
+              {MANUAL_INSTAPAY_NUMBER ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-lg dir-ltr tracking-wide break-all" dir="ltr">
+                    {MANUAL_INSTAPAY_NUMBER}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1 shrink-0"
+                    onClick={() =>
+                      copyToClipboard(MANUAL_INSTAPAY_NUMBER, "بيانات إنستاباي")
+                    }
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    نسخ
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  لم يُضبط رقم أو حساب إنستاباي بعد. أضف{" "}
+                  <span className="font-mono text-xs">NEXT_PUBLIC_MANUAL_INSTAPAY_NUMBER</span>{" "}
+                  في إعدادات البيئة.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Fawaterak gateway — unchanged; toggle with NEXT_PUBLIC_SHOW_FAWATERAK_GATEWAY=true */}
+      {isStudent && SHOW_FAWATERAK_GATEWAY && (
         <Card className="border-brand/20 bg-brand/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
