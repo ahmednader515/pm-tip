@@ -16,7 +16,7 @@ export const ourFileRouter = {
     .onUploadComplete(() => {}),
 
     courseAttachment: f({
-        pdf: { maxFileSize: "16MB", maxFileCount: 1 },
+        pdf: { maxFileSize: "64MB", maxFileCount: 1 },
         image: { maxFileSize: "4MB", maxFileCount: 1 },
         video: { maxFileSize: "512MB", maxFileCount: 1 },
         audio: { maxFileSize: "16MB", maxFileCount: 1 },
