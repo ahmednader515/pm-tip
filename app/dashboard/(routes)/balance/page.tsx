@@ -38,6 +38,10 @@ interface CheckoutResponse {
   method: PaymentMethodKind;
   redirectUrl?: string | null;
   invoiceId?: number;
+  invoiceKey?: string;
+  fawryCode?: string;
+  fawryExpireDate?: string;
+  meezaReference?: string;
 }
 
 const methodDesign: Record<
@@ -96,19 +100,39 @@ export default function BalancePage() {
   });
   const [isLoadingMethods, setIsLoadingMethods] = useState(true);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
+  const [gatewayFollowUp, setGatewayFollowUp] = useState<{
+    kind: "fawry" | "meeza";
+    code?: string;
+    expireDate?: string;
+    reference?: string;
+    invoiceId?: number;
+  } | null>(null);
 
   // Check if user is a student (USER role)
   const isStudent = session?.user?.role === "USER";
 
-  const fetchBalance = useCallback(async () => {
+  const fetchBalance = useCallback(async (opts?: { silent?: boolean }) => {
     try {
       const response = await fetch("/api/user/balance");
       if (response.ok) {
         const data = await response.json();
         setBalance(data.balance);
+      } else {
+        const t = await response.text();
+        console.error("[BALANCE_PAGE] balance fetch failed", response.status, t);
+        if (!opts?.silent) {
+          toast.error(
+            response.status === 401
+              ? "انتهت الجلسة. سجّل الدخول مرة أخرى."
+              : "تعذر تحميل الرصيد. حدّث الصفحة."
+          );
+        }
       }
     } catch (error) {
       console.error("Error fetching balance:", error);
+      if (!opts?.silent) {
+        toast.error("تعذر الاتصال بالخادم لتحميل الرصيد.");
+      }
     }
   }, []);
 
@@ -137,21 +161,46 @@ export default function BalancePage() {
   }, [isStudent, fetchBalance, fetchTransactions]);
 
   useEffect(() => {
+    const RETURN_KEY = "fawaterak_payment_return";
     const params = new URLSearchParams(window.location.search);
-    const paymentResult = params.get("payment");
+    const fromQuery = params.get("payment");
+
+    if (fromQuery) {
+      try {
+        sessionStorage.setItem(RETURN_KEY, fromQuery);
+        if (
+          (fromQuery === "success" || fromQuery === "pending") &&
+          !sessionStorage.getItem("fawaterak_pending")
+        ) {
+          sessionStorage.setItem(
+            "fawaterak_pending",
+            JSON.stringify({ savedAt: Date.now(), fromReturn: true })
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
+    let paymentResult: string | null = null;
+    try {
+      paymentResult = sessionStorage.getItem(RETURN_KEY);
+      if (paymentResult) {
+        sessionStorage.removeItem(RETURN_KEY);
+      }
+    } catch {
+      paymentResult = fromQuery;
+    }
 
     if (paymentResult === "success") {
       toast.success(
-        "تم إكمال الدفع. جاري تحديث الرصيد… إذا تأخر الظهور، حدّث الصفحة بعد لحظات وتأكد أن Webhook في لوحة Fawaterak مضبوط على نطاقك."
+        "تم إكمال الدفع من البوابة. جاري تحديث الرصيد… إذا لم يزد الرصيد خلال دقيقة، تأكد أن Webhook في Fawaterak يشير إلى: /api/fawaterak/webhook_json على نفس النطاق."
       );
     } else if (paymentResult === "pending") {
       toast.info("عملية الدفع قيد المراجعة. سيتم إضافة الرصيد تلقائياً بعد التأكيد.");
     } else if (paymentResult === "failed") {
       toast.error("عملية الدفع لم تكتمل. يمكنك المحاولة مرة أخرى.");
-    }
-
-    if (paymentResult) {
-      window.history.replaceState({}, "", window.location.pathname);
     }
 
     if (paymentResult === "failed") {
@@ -169,7 +218,7 @@ export default function BalancePage() {
     }
 
     const poll = () => {
-      void fetchBalance();
+      void fetchBalance({ silent: true });
       void fetchTransactions({ silent: true });
     };
 
@@ -256,6 +305,7 @@ export default function BalancePage() {
       return;
     }
 
+    setGatewayFollowUp(null);
     setIsInitializingPayment(true);
 
     try {
@@ -270,29 +320,74 @@ export default function BalancePage() {
         }),
       });
 
+      const responseText = await response.text();
+
       if (!response.ok) {
-        const error = await response.text();
-        toast.error(error || "فشل إنشاء عملية الدفع");
+        toast.error(responseText || `فشل إنشاء عملية الدفع (${response.status})`);
         return;
       }
 
-      const data = (await response.json()) as CheckoutResponse;
+      let data: CheckoutResponse;
+      try {
+        data = JSON.parse(responseText) as CheckoutResponse;
+      } catch {
+        console.error("[BALANCE_PAGE] checkout JSON parse error", responseText.slice(0, 200));
+        toast.error("استجابة غير صالحة من خادم الدفع.");
+        return;
+      }
 
       const redirectUrl = data.redirectUrl || null;
+      const invoiceId =
+        typeof data.invoiceId === "number"
+          ? data.invoiceId
+          : typeof data.invoiceId === "string" && /^\d+$/.test(data.invoiceId)
+            ? parseInt(data.invoiceId, 10)
+            : NaN;
 
-      if (typeof data.invoiceId === "number") {
-        sessionStorage.setItem(
-          "fawaterak_pending",
-          JSON.stringify({ invoiceId: data.invoiceId, savedAt: Date.now() })
-        );
+      if (Number.isFinite(invoiceId)) {
+        try {
+          sessionStorage.setItem(
+            "fawaterak_pending",
+            JSON.stringify({ invoiceId, savedAt: Date.now() })
+          );
+        } catch {
+          /* ignore */
+        }
       }
 
       if (redirectUrl) {
-        window.location.href = redirectUrl;
+        window.location.assign(redirectUrl);
         return;
       }
 
-      toast.error("تعذر فتح بوابة الدفع. حاول مرة أخرى.");
+      if (data.fawryCode) {
+        setGatewayFollowUp({
+          kind: "fawry",
+          code: data.fawryCode,
+          expireDate: data.fawryExpireDate,
+          invoiceId: Number.isFinite(invoiceId) ? invoiceId : undefined,
+        });
+        toast.info(
+          "ادفع من خلال منافذ فوري باستخدام الكود أدناه. بعد الدفع سيتم إضافة الرصيد عند استلام الإشعار من Fawaterak."
+        );
+        return;
+      }
+
+      if (data.meezaReference) {
+        setGatewayFollowUp({
+          kind: "meeza",
+          reference: data.meezaReference,
+          invoiceId: Number.isFinite(invoiceId) ? invoiceId : undefined,
+        });
+        toast.info(
+          "أكمل الدفع من تطبيق المحفظة باستخدام المرجع أدناه. سيتم تحديث الرصيد بعد تأكيد البوابة."
+        );
+        return;
+      }
+
+      toast.error(
+        "لم يُرجع رابط دفع من البوابة. جرّب وسيلة أخرى أو راجع إعدادات Fawaterak في السجلات."
+      );
     } catch (error) {
       console.error("Error initializing payment:", error);
       toast.error("حدث خطأ أثناء بدء عملية الدفع");
@@ -466,6 +561,54 @@ export default function BalancePage() {
             >
               {isInitializingPayment ? "جاري بدء الدفع..." : "الدفع عبر Fawaterak"}
             </Button>
+
+            {gatewayFollowUp && (
+              <div
+                className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm space-y-2"
+                role="status"
+              >
+                {gatewayFollowUp.kind === "fawry" ? (
+                  <>
+                    <p className="font-semibold text-amber-950">كود فوري للدفع</p>
+                    <p className="text-amber-900 tabular-nums text-lg font-mono tracking-wide">
+                      {gatewayFollowUp.code}
+                    </p>
+                    {gatewayFollowUp.expireDate && (
+                      <p className="text-amber-800 text-xs">
+                        صلاحية الكود حتى: {gatewayFollowUp.expireDate}
+                      </p>
+                    )}
+                    <p className="text-amber-900 text-xs leading-relaxed">
+                      بعد الدفع في فوري، يصل إشعار إلى خادمنا عبر Webhook فيضاف الرصيد تلقائياً. إن لم يتغير
+                      الرصيد، راجع رابط Webhook في لوحة Fawaterak.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-amber-950">مرجع محفظة ميزة / دفع المحفظة</p>
+                    <p className="text-amber-900 tabular-nums text-lg font-mono">
+                      {gatewayFollowUp.reference}
+                    </p>
+                    <p className="text-amber-900 text-xs leading-relaxed">
+                      أكمل العملية من تطبيق المحفظة. عند نجاح الدفع يُحدَّث الرصيد بعد إشعار البوابة.
+                    </p>
+                  </>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => {
+                    setGatewayFollowUp(null);
+                    void fetchBalance();
+                    void fetchTransactions({ silent: true });
+                  }}
+                >
+                  تحديث الرصيد يدوياً
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

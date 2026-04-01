@@ -60,11 +60,15 @@ async function recordPendingTopup(
   invoiceKey: string,
   amount: number
 ) {
+  const id = Math.trunc(Number(invoiceId));
+  if (!Number.isFinite(id)) {
+    throw new Error("Invalid invoice id for pending record");
+  }
   await db.fawaterakPendingInvoice.upsert({
-    where: { invoiceId },
+    where: { invoiceId: id },
     create: {
       userId,
-      invoiceId,
+      invoiceId: id,
       invoiceKey,
       amount,
     },
@@ -74,6 +78,19 @@ async function recordPendingTopup(
       amount,
     },
   });
+}
+
+function pickRedirectUrl(paymentData: Record<string, unknown> | null | undefined): string | null {
+  if (!paymentData || typeof paymentData !== "object") return null;
+  const pd = paymentData as Record<string, unknown>;
+  const candidates = ["redirectTo", "redirect_to", "redirectUrl", "url", "link"];
+  for (const key of candidates) {
+    const v = pd[key];
+    if (typeof v === "string" && v.startsWith("http")) {
+      return v;
+    }
+  }
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -128,42 +145,46 @@ export async function POST(req: NextRequest) {
       method: methodKind,
     };
 
-    // For Fawry and Wallets we prefer hosted gateway URL, and gracefully
-    // fallback to invoiceInitPay if createInvoiceLink returns gateway error.
-    if (methodKind === "fawry" || methodKind === "wallets") {
-      try {
-        const invoiceLink = await createFawaterakInvoiceLink({
-          amount,
-          successUrl,
-          failUrl,
-          pendingUrl,
-          customer: {
-            // keep a strict/known-safe format for createInvoiceLink endpoint
-            first_name: "test",
-            last_name: "user",
-            email: "no-email@example.com",
-            phone: "01000000000",
-            address: "Egypt",
-          },
-          payLoad,
-        });
+    // Prefer hosted invoice link for every method when it works — always returns a browser URL.
+    try {
+      const invoiceLink = await createFawaterakInvoiceLink({
+        amount,
+        successUrl,
+        failUrl,
+        pendingUrl,
+        customer: {
+          first_name: "test",
+          last_name: "user",
+          email: "no-email@example.com",
+          phone: "01000000000",
+          address: "Egypt",
+        },
+        payLoad,
+      });
 
-        await recordPendingTopup(userId, invoiceLink.invoiceId, invoiceLink.invoiceKey, amount);
+      await recordPendingTopup(
+        userId,
+        invoiceLink.invoiceId,
+        invoiceLink.invoiceKey,
+        amount
+      );
 
-        return NextResponse.json({
-          method: methodKind,
-          methodName:
-            selectedMethod?.name_ar ||
-            selectedMethod?.name_en ||
-            `${methodKind.toUpperCase()} (${selectedPaymentMethodId})`,
-          invoiceId: invoiceLink.invoiceId,
-          invoiceKey: invoiceLink.invoiceKey,
-          paymentData: null,
-          redirectUrl: invoiceLink.url,
-        });
-      } catch (linkError) {
-        console.warn("[FAWATERAK_CHECKOUT] createInvoiceLink failed, fallback to invoiceInitPay", linkError);
-      }
+      return NextResponse.json({
+        method: methodKind,
+        methodName:
+          selectedMethod?.name_ar ||
+          selectedMethod?.name_en ||
+          `${methodKind.toUpperCase()} (${selectedPaymentMethodId})`,
+        invoiceId: Number(invoiceLink.invoiceId),
+        invoiceKey: invoiceLink.invoiceKey,
+        paymentData: null,
+        redirectUrl: invoiceLink.url,
+      });
+    } catch (linkError) {
+      console.warn(
+        "[FAWATERAK_CHECKOUT] createInvoiceLink failed, fallback to invoiceInitPay",
+        linkError
+      );
     }
 
     const invoice = await createFawaterakInvoice({
@@ -176,7 +197,16 @@ export async function POST(req: NextRequest) {
       payLoad,
     });
 
-    await recordPendingTopup(userId, invoice.invoice_id, invoice.invoice_key, amount);
+    const invId = Number(invoice.invoice_id);
+    await recordPendingTopup(userId, invId, invoice.invoice_key, amount);
+
+    const pd = (invoice.payment_data || null) as Record<string, unknown> | null;
+    const redirectUrl = pickRedirectUrl(pd);
+    const fawryCode = typeof pd?.fawryCode === "string" ? pd.fawryCode : undefined;
+    const fawryExpireDate =
+      typeof pd?.expireDate === "string" ? pd.expireDate : undefined;
+    const meezaRef =
+      pd?.meezaReference != null ? String(pd.meezaReference) : undefined;
 
     return NextResponse.json({
       method: methodKind,
@@ -184,13 +214,13 @@ export async function POST(req: NextRequest) {
         selectedMethod?.name_ar ||
         selectedMethod?.name_en ||
         `${methodKind.toUpperCase()} (${selectedPaymentMethodId})`,
-      invoiceId: invoice.invoice_id,
+      invoiceId: invId,
       invoiceKey: invoice.invoice_key,
       paymentData: invoice.payment_data || null,
-      redirectUrl:
-        typeof invoice.payment_data?.redirectTo === "string"
-          ? (invoice.payment_data.redirectTo as string)
-          : null,
+      redirectUrl,
+      fawryCode,
+      fawryExpireDate,
+      meezaReference: meezaRef,
     });
   } catch (error) {
     console.error("[FAWATERAK_CHECKOUT]", error);
