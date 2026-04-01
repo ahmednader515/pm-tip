@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { prismaWithFawaterakPending } from "@/lib/db";
+import { applyFawaterakTopupDeposit } from "@/lib/fawaterak-deposit";
 import { generateCancelWebhookHash, generatePaidWebhookHash } from "@/lib/fawaterak";
 
 interface PaidWebhookBody {
@@ -60,48 +61,6 @@ function extractPayLoadRaw(body: Record<string, unknown>): unknown {
   return null;
 }
 
-async function applyPaidDeposit(invoiceId: number, userId: string, amount: number) {
-  const invoiceMarker = `[FAWATERAK_INVOICE:${invoiceId}]`;
-  const existingTransaction = await db.balanceTransaction.findFirst({
-    where: {
-      userId,
-      type: "DEPOSIT",
-      description: {
-        contains: invoiceMarker,
-      },
-    },
-    select: { id: true },
-  });
-
-  if (existingTransaction) {
-    return;
-  }
-
-  await db.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: userId },
-      data: {
-        balance: {
-          increment: amount,
-        },
-      },
-    });
-
-    await tx.balanceTransaction.create({
-      data: {
-        userId,
-        amount,
-        type: "DEPOSIT",
-        description: `Fawaterak deposit ${amount.toFixed(2)} EGP ${invoiceMarker}`,
-      },
-    });
-
-    await tx.fawaterakPendingInvoice.deleteMany({
-      where: { invoiceId },
-    });
-  });
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as PaidWebhookBody & CancelWebhookBody & Record<string, unknown>;
@@ -144,7 +103,7 @@ export async function POST(req: NextRequest) {
       let amount = Number(payLoad?.amount ?? 0);
 
       if (!userId || !Number.isFinite(amount) || amount <= 0) {
-        const pending = await db.fawaterakPendingInvoice.findUnique({
+        const pending = await prismaWithFawaterakPending().fawaterakPendingInvoice.findUnique({
           where: { invoiceId },
         });
         if (pending) {
@@ -161,7 +120,7 @@ export async function POST(req: NextRequest) {
         return new NextResponse("Missing userId or amount in pay_load", { status: 400 });
       }
 
-      await applyPaidDeposit(invoiceId, userId, amount);
+      await applyFawaterakTopupDeposit(invoiceId, userId, amount);
 
       return NextResponse.json({ success: true });
     }

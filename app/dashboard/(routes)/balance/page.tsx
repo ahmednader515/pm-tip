@@ -157,10 +157,21 @@ export default function BalancePage() {
     const RETURN_KEY = "fawaterak_payment_return";
     const params = new URLSearchParams(window.location.search);
     const fromQuery = params.get("payment");
+    const invoiceIdFromGateway = params.get("invoice_id");
 
     if (fromQuery) {
       try {
         sessionStorage.setItem(RETURN_KEY, fromQuery);
+        if (
+          fromQuery === "success" &&
+          invoiceIdFromGateway &&
+          /^\d+$/.test(invoiceIdFromGateway.trim())
+        ) {
+          sessionStorage.setItem(
+            "fawaterak_success_invoice_id",
+            invoiceIdFromGateway.trim()
+          );
+        }
         if (
           (fromQuery === "success" || fromQuery === "pending") &&
           !sessionStorage.getItem("fawaterak_pending")
@@ -190,6 +201,36 @@ export default function BalancePage() {
       toast.success(
         "تم إكمال الدفع من البوابة. جاري تحديث الرصيد… إذا لم يزد الرصيد خلال دقيقة، تأكد أن Webhook في Fawaterak يشير إلى: /api/fawaterak/webhook_json على نفس النطاق."
       );
+
+      let invoiceIdStr = invoiceIdFromGateway?.trim() ?? "";
+      if (!/^\d+$/.test(invoiceIdStr)) {
+        try {
+          invoiceIdStr = sessionStorage.getItem("fawaterak_success_invoice_id") ?? "";
+        } catch {
+          invoiceIdStr = "";
+        }
+      }
+      const invoiceIdNum = /^\d+$/.test(invoiceIdStr)
+        ? parseInt(invoiceIdStr, 10)
+        : NaN;
+      if (Number.isFinite(invoiceIdNum)) {
+        try {
+          sessionStorage.removeItem("fawaterak_success_invoice_id");
+        } catch {
+          /* ignore */
+        }
+        void fetch("/api/fawaterak/sync-return", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ invoiceId: invoiceIdNum }),
+        })
+          .then(() => {
+            void fetchBalance({ silent: true });
+            void fetchTransactions({ silent: true });
+          })
+          .catch((e) => console.error("[fawaterak sync-return]", e));
+      }
     } else if (paymentResult === "pending") {
       toast.info("عملية الدفع قيد المراجعة. سيتم إضافة الرصيد تلقائياً بعد التأكيد.");
     } else if (paymentResult === "failed") {

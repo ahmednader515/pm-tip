@@ -129,6 +129,8 @@ export async function createFawaterakInvoice(input: {
   successUrl: string;
   failUrl: string;
   pendingUrl: string;
+  /** Per-invoice override; Fawaterak docs: redirectionUrls.webhookUrl */
+  webhookUrl?: string;
   customer: {
     first_name: string;
     last_name: string;
@@ -151,6 +153,7 @@ export async function createFawaterakInvoice(input: {
           successUrl: input.successUrl,
           failUrl: input.failUrl,
           pendingUrl: input.pendingUrl,
+          ...(input.webhookUrl ? { webhookUrl: input.webhookUrl } : {}),
         },
         cartItems: [
           {
@@ -172,6 +175,8 @@ export async function createFawaterakInvoiceLink(input: {
   successUrl: string;
   failUrl: string;
   pendingUrl: string;
+  /** Per-invoice override; Fawaterak docs: redirectionUrls.webhookUrl */
+  webhookUrl?: string;
   customer: {
     first_name: string;
     last_name: string;
@@ -193,6 +198,7 @@ export async function createFawaterakInvoiceLink(input: {
           successUrl: input.successUrl,
           failUrl: input.failUrl,
           pendingUrl: input.pendingUrl,
+          ...(input.webhookUrl ? { webhookUrl: input.webhookUrl } : {}),
         },
         cartItems: [
           {

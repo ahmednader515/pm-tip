@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { prismaWithFawaterakPending } from "@/lib/db";
 import {
   createFawaterakInvoice,
   createFawaterakInvoiceLink,
@@ -64,7 +64,7 @@ async function recordPendingTopup(
   if (!Number.isFinite(id)) {
     throw new Error("Invalid invoice id for pending record");
   }
-  await db.fawaterakPendingInvoice.upsert({
+  await prismaWithFawaterakPending().fawaterakPendingInvoice.upsert({
     where: { invoiceId: id },
     create: {
       userId,
@@ -122,8 +122,13 @@ export async function POST(req: NextRequest) {
     const selectedMethod = pickMethodByKind(methods, methodKind);
     const selectedPaymentMethodId = selectedMethod?.paymentId || fallbackMethodIds[methodKind];
 
-    const callbackBaseUrl =
-      process.env.FAWATERAK_CALLBACK_BASE_URL || new URL(req.url).origin;
+    const callbackBaseUrl = (
+      process.env.FAWATERAK_CALLBACK_BASE_URL || new URL(req.url).origin
+    ).replace(/\/$/, "");
+    /** Per Fawaterak docs, this overrides the portal webhook for this invoice only. */
+    const webhookUrl =
+      process.env.FAWATERAK_WEBHOOK_URL ||
+      `${callbackBaseUrl}/api/fawaterak/webhook_json`;
     const successUrl = `${callbackBaseUrl}/dashboard/balance?payment=success`;
     const failUrl = `${callbackBaseUrl}/dashboard/balance?payment=failed`;
     const pendingUrl = `${callbackBaseUrl}/dashboard/balance?payment=pending`;
@@ -152,6 +157,7 @@ export async function POST(req: NextRequest) {
         successUrl,
         failUrl,
         pendingUrl,
+        webhookUrl,
         customer: {
           first_name: "test",
           last_name: "user",
@@ -193,6 +199,7 @@ export async function POST(req: NextRequest) {
       successUrl,
       failUrl,
       pendingUrl,
+      webhookUrl,
       customer,
       payLoad,
     });
