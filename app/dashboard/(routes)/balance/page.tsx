@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
-import { Wallet, Plus, History, ArrowUpRight, MessageCircle, Copy, Check } from "lucide-react";
+import { Wallet, Plus, History, ArrowUpRight, CreditCard, Landmark, CircleDollarSign, CheckCircle2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 interface BalanceTransaction {
   id: string;
@@ -16,6 +17,63 @@ interface BalanceTransaction {
   createdAt: string;
 }
 
+type PaymentMethodKind = "cards" | "wallets" | "fawry";
+
+interface GatewayMethod {
+  paymentId: number;
+  name_en: string;
+  name_ar: string;
+  redirect: string;
+  logo?: string;
+}
+
+interface MethodsResponse {
+  cards: GatewayMethod | null;
+  wallets: GatewayMethod | null;
+  fawry: GatewayMethod | null;
+  isFallback?: boolean;
+}
+
+interface CheckoutResponse {
+  method: PaymentMethodKind;
+  redirectUrl?: string | null;
+}
+
+const methodDesign: Record<
+  PaymentMethodKind,
+  {
+    title: string;
+    subtitle: string;
+    icon: typeof CreditCard;
+    badgeClass: string;
+  }
+> = {
+  cards: {
+    title: "بطاقات ائتمانية",
+    subtitle: "Visa / Mastercard / Meeza",
+    icon: CreditCard,
+    badgeClass: "bg-blue-100 text-blue-700",
+  },
+  fawry: {
+    title: "Fawry",
+    subtitle: "الدفع بكود فوري",
+    icon: CircleDollarSign,
+    badgeClass: "bg-yellow-100 text-yellow-700",
+  },
+  wallets: {
+    title: "المحافظ الإلكترونية",
+    subtitle: "Vodafone / Orange / Etisalat",
+    icon: Landmark,
+    badgeClass: "bg-emerald-100 text-emerald-700",
+  },
+};
+
+const methodImageFallback: Record<PaymentMethodKind, string> = {
+  cards: "https://staging.fawaterk.com/clients/payment_options/MC_VI_MEpng",
+  fawry: "https://staging.fawaterk.com/clients/payment_options/fawrypng",
+  wallets: "https://staging.fawaterk.com/clients/payment_options/pay5.png",
+};
+
 export default function BalancePage() {
   const { data: session } = useSession();
   const [balance, setBalance] = useState(0);
@@ -23,20 +81,42 @@ export default function BalancePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
-  const [copiedVodafone, setCopiedVodafone] = useState(false);
-  const [copiedEtisalat, setCopiedEtisalat] = useState(false);
+  const [gatewayAmount, setGatewayAmount] = useState("");
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodKind>("cards");
+  const [availableMethods, setAvailableMethods] = useState<MethodsResponse>({
+    cards: null,
+    wallets: null,
+    fawry: null,
+  });
+  const [brokenLogos, setBrokenLogos] = useState<Record<PaymentMethodKind, boolean>>({
+    cards: false,
+    wallets: false,
+    fawry: false,
+  });
+  const [isLoadingMethods, setIsLoadingMethods] = useState(true);
+  const [isInitializingPayment, setIsInitializingPayment] = useState(false);
 
   // Check if user is a student (USER role)
   const isStudent = session?.user?.role === "USER";
-  
-  const vodafoneCashNumber = "01009560680";
-  const etisalatCashNumber = "01151505777";
-  const whatsappNumber = "01009560680";
-  const whatsappLink = `https://wa.me/201009560680`;
 
   useEffect(() => {
     fetchBalance();
     fetchTransactions();
+    if (isStudent) {
+      fetchPaymentMethods();
+    }
+  }, [isStudent]);
+
+  useEffect(() => {
+    const paymentResult = new URLSearchParams(window.location.search).get("payment");
+
+    if (paymentResult === "success") {
+      toast.success("تم استلام طلب الدفع بنجاح. سيتم إضافة الرصيد بعد تأكيد العملية.");
+    } else if (paymentResult === "pending") {
+      toast.info("عملية الدفع قيد المراجعة. سيتم إضافة الرصيد تلقائياً بعد التأكيد.");
+    } else if (paymentResult === "failed") {
+      toast.error("عملية الدفع لم تكتمل. يمكنك المحاولة مرة أخرى.");
+    }
   }, []);
 
   const fetchBalance = async () => {
@@ -62,6 +142,30 @@ export default function BalancePage() {
       console.error("Error fetching transactions:", error);
     } finally {
       setIsLoadingTransactions(false);
+    }
+  };
+
+  const fetchPaymentMethods = async () => {
+    try {
+      const response = await fetch("/api/fawaterak/payment-methods");
+      if (!response.ok) {
+        throw new Error("Failed to load payment methods");
+      }
+
+      const data = (await response.json()) as MethodsResponse;
+      setAvailableMethods(data);
+      setBrokenLogos({ cards: false, wallets: false, fawry: false });
+
+      if (!data.cards && data.wallets) {
+        setSelectedMethod("wallets");
+      } else if (!data.cards && !data.wallets && data.fawry) {
+        setSelectedMethod("fawry");
+      }
+    } catch (error) {
+      console.error("Error fetching fawaterak methods:", error);
+      toast.error("تعذر تحميل وسائل الدفع، حاول مرة أخرى");
+    } finally {
+      setIsLoadingMethods(false);
     }
   };
 
@@ -99,6 +203,56 @@ export default function BalancePage() {
     }
   };
 
+  const handleGatewayCheckout = async () => {
+    const parsedAmount = parseFloat(gatewayAmount);
+    if (!gatewayAmount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast.error("يرجى إدخال مبلغ صحيح");
+      return;
+    }
+
+    if (!availableMethods[selectedMethod]) {
+      toast.error("وسيلة الدفع المحددة غير متاحة حالياً");
+      return;
+    }
+
+    setIsInitializingPayment(true);
+
+    try {
+      const response = await fetch("/api/fawaterak/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: parsedAmount,
+          method: selectedMethod,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        toast.error(error || "فشل إنشاء عملية الدفع");
+        return;
+      }
+
+      const data = (await response.json()) as CheckoutResponse;
+
+      const redirectUrl = data.redirectUrl || null;
+
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+        return;
+      }
+
+      toast.error("تعذر فتح بوابة الدفع. حاول مرة أخرى.");
+    } catch (error) {
+      console.error("Error initializing payment:", error);
+      toast.error("حدث خطأ أثناء بدء عملية الدفع");
+    } finally {
+      setIsInitializingPayment(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("ar-EG", {
       year: "numeric",
@@ -107,13 +261,6 @@ export default function BalancePage() {
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
-
-  const copyToClipboard = (text: string, setCopiedState: (value: boolean) => void) => {
-    navigator.clipboard.writeText(text);
-    setCopiedState(true);
-    toast.success("تم نسخ الرقم");
-    setTimeout(() => setCopiedState(false), 2000);
   };
 
   return (
@@ -188,81 +335,88 @@ export default function BalancePage() {
         <Card className="border-brand/20 bg-brand/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-brand" />
-              إضافة رصيد عبر فودافون كاش أو انستا باي
+              <CreditCard className="h-5 w-5 text-brand" />
+              إضافة رصيد عن طريق بوابة الدفع
             </CardTitle>
             <CardDescription>
-              قم بتحويل المبلغ إلى أحد الأرقام التالية ثم أرسل صورة الإيصال
+              اختر وسيلة الدفع المناسبة وأكمل العملية من بوابة الدفع
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Vodafone Cash */}
-            <div className="bg-card rounded-lg p-4 border-2 border-brand/30">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">رقم فودافون كاش</p>
-                  <p className="text-2xl font-bold text-brand">{vodafoneCashNumber}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => copyToClipboard(vodafoneCashNumber, setCopiedVodafone)}
-                  className="h-10 w-10"
-                >
-                  {copiedVodafone ? (
-                    <Check className="h-4 w-4 text-brand" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="gatewayAmount">المبلغ (جنيه)</Label>
+              <Input
+                id="gatewayAmount"
+                type="number"
+                placeholder="أدخل المبلغ"
+                value={gatewayAmount}
+                onChange={(e) => setGatewayAmount(e.target.value)}
+                min="1"
+                step="0.01"
+              />
             </div>
 
-            {/* Etisalat Cash */}
-            <div className="bg-card rounded-lg p-4 border-2 border-brand/30">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">رقم انستا باي</p>
-                  <p className="text-2xl font-bold text-brand">{etisalatCashNumber}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => copyToClipboard(etisalatCashNumber, setCopiedEtisalat)}
-                  className="h-10 w-10"
-                >
-                  {copiedEtisalat ? (
-                    <Check className="h-4 w-4 text-brand" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
+            {isLoadingMethods ? (
+              <div className="text-sm text-muted-foreground">جاري تحميل وسائل الدفع...</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {(["cards", "fawry", "wallets"] as PaymentMethodKind[]).map((methodKey) => {
+                  const method = availableMethods[methodKey];
+                  const selected = selectedMethod === methodKey;
+                  const isDisabled = !method;
+                  const Icon = methodDesign[methodKey].icon;
 
-            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <p className="font-semibold text-sm">خطوات الإيداع:</p>
-              <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-                <li>قم بتحويل المبلغ المطلوب إلى أحد الأرقام أعلاه (فودافون كاش أو انستا باي)</li>
-                <li>احفظ صورة إيصال التحويل من التطبيق</li>
-                <li>اضغط على زر "إرسال صورة الإيصال" أدناه</li>
-                <li>سيتم مراجعة طلبك وإضافة الرصيد إلى حسابك خلال 24 ساعة</li>
-              </ol>
-            </div>
+                  return (
+                    <button
+                      key={methodKey}
+                      type="button"
+                      onClick={() => !isDisabled && setSelectedMethod(methodKey)}
+                      disabled={isDisabled}
+                      className={`relative text-right rounded-xl border p-4 transition-all ${
+                        selected
+                          ? "border-brand ring-2 ring-brand/25 bg-brand/5"
+                          : "border-border hover:border-brand/40 hover:bg-muted/30"
+                      } ${isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    >
+                      {selected && !isDisabled && (
+                        <CheckCircle2 className="h-5 w-5 text-brand absolute top-3 left-3" />
+                      )}
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className={`rounded-lg p-2 min-h-10 min-w-10 flex items-center justify-center ${methodDesign[methodKey].badgeClass}`}>
+                          {!brokenLogos[methodKey] ? (
+                            <img
+                              src={methodImageFallback[methodKey]}
+                              alt={method?.name_en || methodKey}
+                              className="h-6 object-contain"
+                              onError={() =>
+                                setBrokenLogos((prev) => ({ ...prev, [methodKey]: true }))
+                              }
+                            />
+                          ) : (
+                            <Icon className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{methodDesign[methodKey].title}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {methodDesign[methodKey].subtitle}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <Button
-              asChild
+              onClick={handleGatewayCheckout}
+              disabled={isInitializingPayment || isLoadingMethods}
               className="w-full bg-brand hover:bg-brand/90 text-white"
               size="lg"
             >
-              <a
-                href={whatsappLink}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <MessageCircle className="h-5 w-5 ml-2" />
-                إرسال صورة الإيصال على واتساب
-              </a>
+              {isInitializingPayment ? "جاري بدء الدفع..." : "الدفع عبر Fawaterak"}
             </Button>
           </CardContent>
         </Card>

@@ -1,0 +1,169 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { generateCancelWebhookHash, generatePaidWebhookHash } from "@/lib/fawaterak";
+
+interface PaidWebhookBody {
+  hashKey?: string;
+  invoice_id?: number;
+  invoice_key?: string;
+  payment_method?: string;
+  invoice_status?: string;
+  pay_load?: unknown;
+  referenceNumber?: string;
+  errorMessage?: string;
+}
+
+interface CancelWebhookBody {
+  hashKey?: string;
+  referenceId?: string;
+  paymentMethod?: string;
+  status?: string;
+  pay_load?: unknown;
+}
+
+function parsePayLoad(raw: unknown): Record<string, unknown> | null {
+  if (!raw) return null;
+
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, unknown>;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof raw === "object") {
+    return raw as Record<string, unknown>;
+  }
+
+  return null;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json()) as PaidWebhookBody & CancelWebhookBody;
+
+    const isPaidWebhook =
+      typeof body.invoice_id === "number" &&
+      typeof body.invoice_key === "string" &&
+      typeof body.payment_method === "string" &&
+      typeof body.invoice_status === "string";
+
+    if (isPaidWebhook) {
+      const expectedHash = generatePaidWebhookHash({
+        invoiceId: body.invoice_id as number,
+        invoiceKey: body.invoice_key as string,
+        paymentMethod: body.payment_method as string,
+      });
+
+      if (!body.hashKey || body.hashKey.toLowerCase() !== expectedHash.toLowerCase()) {
+        return new NextResponse("Invalid webhook hash", { status: 401 });
+      }
+
+      if ((body.invoice_status || "").toLowerCase() !== "paid") {
+        return NextResponse.json({
+          success: true,
+          message: `Ignored invoice status: ${body.invoice_status}`,
+        });
+      }
+
+      const payLoad = parsePayLoad(body.pay_load);
+      const userId = typeof payLoad?.userId === "string" ? payLoad.userId : null;
+      const amount = Number(payLoad?.amount ?? 0);
+
+      if (!userId || !Number.isFinite(amount) || amount <= 0) {
+        return new NextResponse("Missing userId or amount in pay_load", { status: 400 });
+      }
+
+      const invoiceMarker = `[FAWATERAK_INVOICE:${body.invoice_id}]`;
+      const existingTransaction = await db.balanceTransaction.findFirst({
+        where: {
+          userId,
+          type: "DEPOSIT",
+          description: {
+            contains: invoiceMarker,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (!existingTransaction) {
+        await db.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: userId },
+            data: {
+              balance: {
+                increment: amount,
+              },
+            },
+          });
+
+          await tx.balanceTransaction.create({
+            data: {
+              userId,
+              amount,
+              type: "DEPOSIT",
+              description: `Fawaterak deposit ${amount.toFixed(2)} EGP ${invoiceMarker}`,
+            },
+          });
+        });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    const isFailedWebhook =
+      typeof body.invoice_id === "number" &&
+      typeof body.invoice_key === "string" &&
+      typeof body.payment_method === "string" &&
+      typeof body.errorMessage === "string";
+
+    if (isFailedWebhook) {
+      const expectedHash = generatePaidWebhookHash({
+        invoiceId: body.invoice_id as number,
+        invoiceKey: body.invoice_key as string,
+        paymentMethod: body.payment_method as string,
+      });
+
+      if (!body.hashKey || body.hashKey.toLowerCase() !== expectedHash.toLowerCase()) {
+        return new NextResponse("Invalid failed webhook hash", { status: 401 });
+      }
+
+      return NextResponse.json({ success: true, status: "failed-received" });
+    }
+
+    const isCancelWebhook =
+      typeof body.referenceId === "string" && typeof body.paymentMethod === "string";
+
+    if (isCancelWebhook) {
+      const expectedHash = generateCancelWebhookHash({
+        referenceId: body.referenceId as string,
+        paymentMethod: body.paymentMethod as string,
+      });
+
+      if (!body.hashKey || body.hashKey.toLowerCase() !== expectedHash.toLowerCase()) {
+        return new NextResponse("Invalid cancel webhook hash", { status: 401 });
+      }
+
+      return NextResponse.json({ success: true, status: body.status || "received" });
+    }
+
+    const isRefundWebhook =
+      typeof (body as Record<string, unknown>).transactionId !== "undefined" &&
+      typeof (body as Record<string, unknown>).status === "string" &&
+      typeof (body as Record<string, unknown>).amount !== "undefined";
+
+    if (isRefundWebhook) {
+      return NextResponse.json({ success: true, status: "refund-received" });
+    }
+
+    return new NextResponse("Unsupported webhook payload", { status: 400 });
+  } catch (error) {
+    console.error("[FAWATERAK_WEBHOOK_JSON]", error);
+    return new NextResponse("Internal Error", { status: 500 });
+  }
+}
