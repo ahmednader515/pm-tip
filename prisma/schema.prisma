@@ -33,6 +33,20 @@ model User {
   usedPurchaseCodes       PurchaseCode[] @relation("CodeUser")
   subscriptions           Subscription[]
   subscriptionPurchases   SubscriptionPurchase[]
+  fawaterakPendingInvoices FawaterakPendingInvoice[]
+}
+
+/// Tracks balance top-up invoices so webhooks still work when Fawaterak omits pay_load (docs allow null).
+model FawaterakPendingInvoice {
+  id         String   @id @default(uuid())
+  userId     String
+  invoiceId  Int      @unique
+  invoiceKey String
+  amount     Float
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Course {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
 import {
   createFawaterakInvoice,
   createFawaterakInvoiceLink,
@@ -51,6 +52,28 @@ function normalizeMethod(method: unknown): FawaterakMethodKind | null {
     return method;
   }
   return null;
+}
+
+async function recordPendingTopup(
+  userId: string,
+  invoiceId: number,
+  invoiceKey: string,
+  amount: number
+) {
+  await db.fawaterakPendingInvoice.upsert({
+    where: { invoiceId },
+    create: {
+      userId,
+      invoiceId,
+      invoiceKey,
+      amount,
+    },
+    update: {
+      userId,
+      invoiceKey,
+      amount,
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -125,6 +148,8 @@ export async function POST(req: NextRequest) {
           payLoad,
         });
 
+        await recordPendingTopup(userId, invoiceLink.invoiceId, invoiceLink.invoiceKey, amount);
+
         return NextResponse.json({
           method: methodKind,
           methodName:
@@ -150,6 +175,8 @@ export async function POST(req: NextRequest) {
       customer,
       payLoad,
     });
+
+    await recordPendingTopup(userId, invoice.invoice_id, invoice.invoice_key, amount);
 
     return NextResponse.json({
       method: methodKind,

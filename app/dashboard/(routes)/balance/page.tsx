@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,7 @@ interface MethodsResponse {
 interface CheckoutResponse {
   method: PaymentMethodKind;
   redirectUrl?: string | null;
+  invoiceId?: number;
 }
 
 const methodDesign: Record<
@@ -99,27 +100,7 @@ export default function BalancePage() {
   // Check if user is a student (USER role)
   const isStudent = session?.user?.role === "USER";
 
-  useEffect(() => {
-    fetchBalance();
-    fetchTransactions();
-    if (isStudent) {
-      fetchPaymentMethods();
-    }
-  }, [isStudent]);
-
-  useEffect(() => {
-    const paymentResult = new URLSearchParams(window.location.search).get("payment");
-
-    if (paymentResult === "success") {
-      toast.success("تم استلام طلب الدفع بنجاح. سيتم إضافة الرصيد بعد تأكيد العملية.");
-    } else if (paymentResult === "pending") {
-      toast.info("عملية الدفع قيد المراجعة. سيتم إضافة الرصيد تلقائياً بعد التأكيد.");
-    } else if (paymentResult === "failed") {
-      toast.error("عملية الدفع لم تكتمل. يمكنك المحاولة مرة أخرى.");
-    }
-  }, []);
-
-  const fetchBalance = async () => {
+  const fetchBalance = useCallback(async () => {
     try {
       const response = await fetch("/api/user/balance");
       if (response.ok) {
@@ -129,9 +110,9 @@ export default function BalancePage() {
     } catch (error) {
       console.error("Error fetching balance:", error);
     }
-  };
+  }, []);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async (opts?: { silent?: boolean }) => {
     try {
       const response = await fetch("/api/balance/transactions");
       if (response.ok) {
@@ -141,9 +122,69 @@ export default function BalancePage() {
     } catch (error) {
       console.error("Error fetching transactions:", error);
     } finally {
-      setIsLoadingTransactions(false);
+      if (!opts?.silent) {
+        setIsLoadingTransactions(false);
+      }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchBalance();
+    fetchTransactions();
+    if (isStudent) {
+      fetchPaymentMethods();
+    }
+  }, [isStudent, fetchBalance, fetchTransactions]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentResult = params.get("payment");
+
+    if (paymentResult === "success") {
+      toast.success(
+        "تم إكمال الدفع. جاري تحديث الرصيد… إذا تأخر الظهور، حدّث الصفحة بعد لحظات وتأكد أن Webhook في لوحة Fawaterak مضبوط على نطاقك."
+      );
+    } else if (paymentResult === "pending") {
+      toast.info("عملية الدفع قيد المراجعة. سيتم إضافة الرصيد تلقائياً بعد التأكيد.");
+    } else if (paymentResult === "failed") {
+      toast.error("عملية الدفع لم تكتمل. يمكنك المحاولة مرة أخرى.");
+    }
+
+    if (paymentResult) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
+    if (paymentResult === "failed") {
+      sessionStorage.removeItem("fawaterak_pending");
+    }
+
+    const hasPendingFlag = Boolean(sessionStorage.getItem("fawaterak_pending"));
+    const shouldPoll =
+      paymentResult === "success" ||
+      paymentResult === "pending" ||
+      (hasPendingFlag && paymentResult !== "failed");
+
+    if (!shouldPoll) {
+      return;
+    }
+
+    const poll = () => {
+      void fetchBalance();
+      void fetchTransactions({ silent: true });
+    };
+
+    poll();
+    const interval = setInterval(poll, 2500);
+    const stop = setTimeout(() => {
+      clearInterval(interval);
+      sessionStorage.removeItem("fawaterak_pending");
+    }, 45000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(stop);
+    };
+  }, [fetchBalance, fetchTransactions]);
 
   const fetchPaymentMethods = async () => {
     try {
@@ -190,7 +231,7 @@ export default function BalancePage() {
         setBalance(data.newBalance);
         setAmount("");
         toast.success("تم إضافة الرصيد بنجاح");
-        fetchTransactions(); // Refresh transactions
+        fetchTransactions({ silent: true }); // Refresh transactions
       } else {
         const error = await response.text();
         toast.error(error || "حدث خطأ أثناء إضافة الرصيد");
@@ -238,6 +279,13 @@ export default function BalancePage() {
       const data = (await response.json()) as CheckoutResponse;
 
       const redirectUrl = data.redirectUrl || null;
+
+      if (typeof data.invoiceId === "number") {
+        sessionStorage.setItem(
+          "fawaterak_pending",
+          JSON.stringify({ invoiceId: data.invoiceId, savedAt: Date.now() })
+        );
+      }
 
       if (redirectUrl) {
         window.location.href = redirectUrl;
