@@ -9,6 +9,9 @@ import { getCachedHomepageContent } from "@/lib/homepage-db";
 import { Suspense } from "react";
 import { theme } from "@/lib/theme";
 
+/** Homepage CMS data must be read at request time, not baked in at build. */
+export const dynamic = "force-dynamic";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

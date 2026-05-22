@@ -23,7 +23,7 @@ export default async function Icon() {
         return new Response(bytes, {
             headers: {
                 "Content-Type": contentType,
-                "Cache-Control": "public, max-age=3600, must-revalidate",
+                "Cache-Control": "no-store",
             },
         });
     } catch (error) {
@@ -35,7 +35,7 @@ export default async function Icon() {
         return new Response(bytes, {
             headers: {
                 "Content-Type": "image/png",
-                "Cache-Control": "public, max-age=3600, must-revalidate",
+                "Cache-Control": "no-store",
             },
         });
     }

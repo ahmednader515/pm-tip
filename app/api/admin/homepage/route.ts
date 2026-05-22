@@ -31,7 +31,9 @@ export async function PUT(req: NextRequest) {
         }
 
         const content = await updateHomepageContent(data);
-        return NextResponse.json(content);
+        return NextResponse.json(content, {
+            headers: { "Cache-Control": "no-store" },
+        });
     } catch (error) {
         console.error("[ADMIN_HOMEPAGE_PUT]", error);
         return new NextResponse("Internal Error", { status: 500 });

@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 import { db } from "@/lib/db";
 import {
     DEFAULT_HOMEPAGE_CONTENT,
@@ -25,7 +26,16 @@ export function toAbsoluteAssetUrl(path: string, baseUrl = getAppBaseUrl()): str
     return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+/** Bust Next.js full-route / data cache after CMS saves (required on Vercel). */
+export function revalidateHomepagePaths() {
+    revalidatePath("/", "layout");
+    revalidatePath("/");
+    revalidatePath("/icon");
+}
+
 export async function getHomepageContent(): Promise<HomepageContent> {
+    noStore();
+
     const row = await db.homepageSettings.findUnique({
         where: { id: HOMEPAGE_SETTINGS_ID },
     });
@@ -81,5 +91,7 @@ export async function updateHomepageContent(
         },
     });
 
-    return toHomepageContent(row);
+    const content = toHomepageContent(row);
+    revalidateHomepagePaths();
+    return content;
 }
