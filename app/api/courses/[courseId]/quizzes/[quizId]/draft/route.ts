@@ -3,6 +3,11 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { hasCourseAccess } from "@/lib/course-access";
 
+function clampQuestionIndex(index: number, questionCount: number): number {
+    const max = Math.max(0, questionCount - 1);
+    return Math.min(Math.max(0, Math.floor(index)), max);
+}
+
 export async function GET(
     req: Request,
     { params }: { params: Promise<{ courseId: string; quizId: string }> }
@@ -27,12 +32,13 @@ export async function GET(
         });
 
         if (!draft) {
-            return NextResponse.json({ answers: [] });
+            return NextResponse.json({ answers: [], currentQuestionIndex: 0 });
         }
 
         const answers = (draft.answers as { questionId: string; answer: string }[]) || [];
         return NextResponse.json({
             answers,
+            currentQuestionIndex: draft.currentQuestionIndex ?? 0,
             updatedAt: draft.updatedAt,
         });
     } catch (error) {
@@ -48,7 +54,8 @@ export async function PUT(
     try {
         const { userId } = await auth();
         const resolvedParams = await params;
-        const { answers } = await req.json();
+        const body = await req.json();
+        const { answers, currentQuestionIndex: rawIndex } = body;
 
         if (!userId) {
             return new NextResponse("Unauthorized", { status: 401 });
@@ -65,6 +72,9 @@ export async function PUT(
                 courseId: resolvedParams.courseId,
                 isPublished: true,
             },
+            include: {
+                _count: { select: { questions: true } },
+            },
         });
 
         if (!quiz) {
@@ -78,6 +88,12 @@ export async function PUT(
               }))
             : [];
 
+        const questionCount = quiz._count.questions;
+        const hasIndex = typeof rawIndex === "number" && Number.isFinite(rawIndex);
+        const clampedIndex = hasIndex
+            ? clampQuestionIndex(rawIndex, questionCount)
+            : undefined;
+
         await db.quizDraft.upsert({
             where: {
                 userId_quizId: { userId, quizId: resolvedParams.quizId },
@@ -86,9 +102,11 @@ export async function PUT(
                 userId,
                 quizId: resolvedParams.quizId,
                 answers: normalized,
+                currentQuestionIndex: clampedIndex ?? 0,
             },
             update: {
                 answers: normalized,
+                ...(clampedIndex !== undefined ? { currentQuestionIndex: clampedIndex } : {}),
             },
         });
 

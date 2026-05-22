@@ -2,13 +2,15 @@
 
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Star, Users, BookOpen, Award, ChevronDown } from "lucide-react";
+import { ArrowRight, Star, BookOpen, ChevronDown, ShoppingBag } from "lucide-react";
+import { formatPrice } from "@/lib/format";
+import { HomepageFeatureIconComponent } from "@/lib/homepage-icons";
+import { useHomepageSettings } from "@/components/homepage-settings-provider";
 import Link from "next/link";
 import Image from "next/image";
 import { Navbar } from "@/components/navbar";
 import { ScrollProgress } from "@/components/scroll-progress";
 import { useEffect, useState } from "react";
-import { db } from "@/lib/db"; // Import db client
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -41,9 +43,20 @@ type CourseWithProgress = Course & {
   progress: number;
 };
 
+type StoreProductPublic = {
+  id: string;
+  title: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  price: number;
+};
+
 export default function HomePage() {
   const [courses, setCourses] = useState<CourseWithProgress[]>([]);
+  const [storeProducts, setStoreProducts] = useState<StoreProductPublic[]>([]);
+  const homepage = useHomepageSettings();
   const [isLoading, setIsLoading] = useState(true);
+  const [isStoreLoading, setIsStoreLoading] = useState(true);
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
   const { data: session } = useSession();
   const router = useRouter();
@@ -72,6 +85,24 @@ export default function HomePage() {
     };
 
     fetchCourses();
+  }, []);
+
+  useEffect(() => {
+    const fetchStore = async () => {
+      try {
+        setIsStoreLoading(true);
+        const response = await fetch("/api/store/public");
+        if (response.ok) {
+          setStoreProducts(await response.json());
+        }
+      } catch (error) {
+        console.error("Error fetching store products:", error);
+      } finally {
+        setIsStoreLoading(false);
+      }
+    };
+
+    fetchStore();
   }, []);
 
   useEffect(() => {
@@ -124,12 +155,13 @@ export default function HomePage() {
             <div className="relative w-32 h-32 md:w-80 md:h-80 overflow-hidden rounded-full border-4 border-brand/20 shadow-lg bg-background">
               <div className="absolute inset-2 md:inset-4">
                 <Image
-                  src="/logo.png"
+                  src={homepage.teacherImageUrl}
                   alt="منصة PM TIPS"
                   fill
                   priority
                   className="object-contain object-center"
                   sizes="(max-width: 768px) 128px, 288px"
+                  unoptimized={homepage.teacherImageUrl.startsWith("/")}
                 />
               </div>
             </div>
@@ -410,8 +442,111 @@ export default function HomePage() {
         </motion.div>
       </section>
 
+      {/* Store Section */}
+      <section id="store-section" className="py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.8 }}
+          className="container mx-auto px-4"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl font-bold mb-4">المتجر</h2>
+            <p className="text-muted-foreground">منتجات رقمية يمكن شراؤها من رصيدك</p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="flex flex-wrap justify-center gap-6"
+          >
+            {isStoreLoading ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="w-full sm:w-80 md:w-72 lg:w-80 bg-card rounded-xl overflow-hidden border shadow-sm animate-pulse"
+                >
+                  <div className="w-full aspect-video bg-muted" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-muted rounded w-3/4" />
+                    <div className="h-4 bg-muted rounded w-1/2" />
+                  </div>
+                </div>
+              ))
+            ) : storeProducts.length === 0 ? (
+              <div className="text-center py-12 w-full">
+                <div className="max-w-md mx-auto">
+                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ShoppingBag className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">لا توجد منتجات متاحة حالياً</h3>
+                  <p className="text-muted-foreground">
+                    سيتم إضافة منتجات جديدة قريباً.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              storeProducts.map((product, index) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-100px" }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  className="group w-full sm:w-80 md:w-72 lg:w-80 bg-card rounded-xl overflow-hidden border shadow-sm hover:shadow-md transition-all"
+                >
+                  <div className="relative w-full aspect-video">
+                    <Image
+                      src={product.imageUrl || "/placeholder.png"}
+                      alt={product.title}
+                      fill
+                      className="object-cover rounded-t-xl"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <div className="p-4">
+                    <h3 className="text-lg font-semibold mb-2 line-clamp-2">
+                      {product.title}
+                    </h3>
+                    {product.description && (
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                        {product.description}
+                      </p>
+                    )}
+                    <p className="text-lg font-semibold text-primary mb-4">
+                      {formatPrice(product.price)}
+                    </p>
+                    <Button
+                      className="w-full bg-brand hover:bg-brand/90 text-white"
+                      onClick={() => {
+                        if (!session?.user) {
+                          router.push("/sign-in");
+                          return;
+                        }
+                        router.push("/dashboard/store");
+                      }}
+                    >
+                      {session?.user ? "عرض في المتجر" : "سجل الدخول للشراء"}
+                    </Button>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </motion.div>
+        </motion.div>
+      </section>
+
       {/* Testimonials Section */}
-      <section className="py-20">
+      <section className="py-20 bg-muted/50">
         <div className="container mx-auto px-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -424,25 +559,9 @@ export default function HomePage() {
             <p className="text-muted-foreground">ماذا يقول طلابنا عن تجربتهم معنا</p>
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                name: "عصام اسامة",
-                grade: "الصف الأول الثانوي",
-                testimonial: "تجربة رائعة مع منصة PM TIPS، المحتوى غني والشرح مبسط"
-              },
-              {
-                name: "سيف طارق",
-                grade: "الصف الثاني الثانوي",
-                testimonial: "المنهج منظم جداً والشرح واضح، ساعدني في فهم المواد بشكل أفضل"
-              },
-              {
-                name: "عمر جمال",
-                grade: "الصف الأول الثانوي",
-                testimonial: "أفضل منصة تعليمية استخدمتها، المحتوى غني والشرح مبسط"
-              }
-            ].map((testimonial, index) => (
+            {homepage.testimonials.map((testimonial, index) => (
               <motion.div
-                key={index}
+                key={`${testimonial.name}-${index}`}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -452,10 +571,11 @@ export default function HomePage() {
                 <div className="flex items-center mb-4">
                   <div className="relative h-12 w-12 rounded-full overflow-hidden">
                     <Image
-                      src="/male.png"
+                      src={testimonial.avatarUrl || "/male.png"}
                       alt={testimonial.name}
                       fill
                       className="object-cover"
+                      unoptimized={(testimonial.avatarUrl || "/male.png").startsWith("/")}
                     />
                   </div>
                   <div className="mr-4">
@@ -504,47 +624,22 @@ export default function HomePage() {
             transition={{ duration: 0.8, delay: 0.4 }}
             className="grid grid-cols-1 md:grid-cols-3 gap-8"
           >
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-center p-6 rounded-xl bg-card border shadow-sm hover:shadow-md transition-all"
-            >
-              <div className="w-12 h-12 bg-brand/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Star className="h-6 w-6 text-brand" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">جودة عالية</h3>
-              <p className="text-muted-foreground">أفضل منصة متخصصة لكورسات جميع المواد</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="text-center p-6 rounded-xl bg-card border shadow-sm hover:shadow-md transition-all"
-            >
-              <div className="w-12 h-12 bg-brand/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="h-6 w-6 text-brand" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">مجتمع نشط</h3>
-              <p className="text-muted-foreground">انضم إلى مجتمع من الطلاب النشطين والمتفوقين والأوائل</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="text-center p-6 rounded-xl bg-card border shadow-sm hover:shadow-md transition-all"
-            >
-              <div className="w-12 h-12 bg-brand/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Award className="h-6 w-6 text-brand" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">شهادات تقدير</h3>
-              <p className="text-muted-foreground">احصل على شهادات تقدير عند إكمال الكورسات</p>
-            </motion.div>
+            {homepage.features.map((feature, index) => (
+              <motion.div
+                key={`${feature.title}-${index}`}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
+                className="text-center p-6 rounded-xl bg-card border shadow-sm hover:shadow-md transition-all"
+              >
+                <div className="w-12 h-12 bg-brand/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <HomepageFeatureIconComponent icon={feature.icon} />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                <p className="text-muted-foreground">{feature.description}</p>
+              </motion.div>
+            ))}
           </motion.div>
         </motion.div>
       </section>

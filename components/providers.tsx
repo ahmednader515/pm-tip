@@ -8,6 +8,8 @@ import { RTLProvider } from "@/components/providers/rtl-provider";
 import { ThemeProvider as BrandThemeProvider } from "@/components/theme-provider";
 import { NavigationProvider } from "@/lib/contexts/navigation-context";
 import { SessionMonitor } from "@/components/session-monitor";
+import { HomepageSettingsProvider } from "@/components/homepage-settings-provider";
+import type { HomepageContent } from "@/lib/homepage";
 import { useEffect } from "react";
 
 // Component to handle session loading states
@@ -24,8 +26,15 @@ const SessionHandler = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-export const Providers = ({ children }: { children: React.ReactNode }) => {
+export const Providers = ({
+  children,
+  homepageSettings,
+}: {
+  children: React.ReactNode;
+  homepageSettings: HomepageContent;
+}) => {
   return (
+    <HomepageSettingsProvider settings={homepageSettings}>
     <SessionProvider
       refetchInterval={0} // Disable automatic refetching
       refetchOnWindowFocus={false} // Disable refetch on window focus
@@ -53,5 +62,6 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
         </RTLProvider>
       </SessionHandler>
     </SessionProvider>
+    </HomepageSettingsProvider>
   );
 }; 

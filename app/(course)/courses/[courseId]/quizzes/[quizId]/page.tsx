@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Clock, AlertCircle, Save, Eye, Languages } from "lucide-react";
+import { ArrowLeft, Clock, AlertCircle, Save, Languages } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { parseQuizOptions } from "@/lib/utils";
 
@@ -19,7 +19,6 @@ interface Question {
     text: string;
     type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER";
     options?: string[] | string;
-    correctAnswer: string;
     points: number;
     imageUrl?: string;
 }
@@ -63,11 +62,7 @@ export default function QuizPage({
     const [savingDraft, setSavingDraft] = useState(false);
     const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
     const saveDraftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [revealedCorrect, setRevealedCorrect] = useState<Record<string, string>>({});
-    const [revealedCorrectTranslated, setRevealedCorrectTranslated] = useState<Record<string, string>>({});
-    const [revealedExplanation, setRevealedExplanation] = useState<Record<string, string>>({});
-    const [revealedExplanationTranslated, setRevealedExplanationTranslated] = useState<Record<string, string>>({});
-    const [loadingCorrectId, setLoadingCorrectId] = useState<string | null>(null);
+    const currentQuestionRef = useRef(0);
     const [translating, setTranslating] = useState(false);
     const [translatedQuiz, setTranslatedQuiz] = useState<{
         questions: { text: string; options?: string[] }[];
@@ -85,58 +80,14 @@ export default function QuizPage({
     }, [redirectToResult, courseId, quizId, router]);
 
     useEffect(() => {
+        currentQuestionRef.current = currentQuestion;
+    }, [currentQuestion]);
+
+    useEffect(() => {
         return () => {
             if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current);
         };
     }, []);
-
-    // When in translated view, translate revealed correct answers and explanations
-    useEffect(() => {
-        if (!translatedQuiz) return;
-        const toTranslate = Object.entries(revealedCorrect).filter(
-            ([id, text]) => text && !revealedCorrectTranslated[id]
-        );
-        const toTranslateExpl = Object.entries(revealedExplanation).filter(
-            ([id, text]) => text && !revealedExplanationTranslated[id]
-        );
-        if (toTranslate.length === 0 && toTranslateExpl.length === 0) return;
-        (async () => {
-            for (const [questionId, text] of toTranslate) {
-                try {
-                    const res = await fetch("/api/translate", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ texts: [text] }),
-                    });
-                    if (res.ok) {
-                        const { translations } = await res.json();
-                        if (Array.isArray(translations) && translations[0]) {
-                            setRevealedCorrectTranslated((prev) => ({ ...prev, [questionId]: translations[0] }));
-                        }
-                    }
-                } catch {
-                    // keep original
-                }
-            }
-            for (const [questionId, text] of toTranslateExpl) {
-                try {
-                    const res = await fetch("/api/translate", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ texts: [text] }),
-                    });
-                    if (res.ok) {
-                        const { translations } = await res.json();
-                        if (Array.isArray(translations) && translations[0]) {
-                            setRevealedExplanationTranslated((prev) => ({ ...prev, [questionId]: translations[0] }));
-                        }
-                    }
-                } catch {
-                    // keep original
-                }
-            }
-        })();
-    }, [translatedQuiz, revealedCorrect, revealedExplanation]);
 
     useEffect(() => {
         if (quiz?.timer != null && timeLeft > 0) {
@@ -163,6 +114,11 @@ export default function QuizPage({
                     if (draftData.answers?.length) {
                         setAnswers(draftData.answers);
                     }
+                    const max = data.questions.length - 1;
+                    const idx = draftData.currentQuestionIndex ?? 0;
+                    const restored = Math.min(Math.max(0, idx), max);
+                    setCurrentQuestion(restored);
+                    currentQuestionRef.current = restored;
                 }
             } else {
                 const errorText = await response.text();
@@ -194,14 +150,21 @@ export default function QuizPage({
         }
     };
 
-    const saveDraft = async (answersToSave: QuizAnswer[], showToast = false) => {
-        if (!courseId || !quizId || answersToSave.length === 0) return;
+    const persistDraft = async (
+        answersToSave: QuizAnswer[],
+        questionIndex: number,
+        showToast = false
+    ) => {
+        if (!courseId || !quizId) return;
         setSavingDraft(true);
         try {
             const res = await fetch(`/api/courses/${courseId}/quizzes/${quizId}/draft`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ answers: answersToSave }),
+                body: JSON.stringify({
+                    answers: answersToSave,
+                    currentQuestionIndex: questionIndex,
+                }),
             });
             if (res.ok) {
                 setLastSavedAt(new Date());
@@ -214,6 +177,12 @@ export default function QuizPage({
         }
     };
 
+    const goToQuestion = (index: number) => {
+        setCurrentQuestion(index);
+        currentQuestionRef.current = index;
+        persistDraft(answers, index);
+    };
+
     const handleAnswerChange = (questionId: string, answer: string) => {
         setAnswers(prev => {
             const next = (() => {
@@ -224,31 +193,12 @@ export default function QuizPage({
                 return [...prev, { questionId, answer }];
             })();
             if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current);
-            saveDraftTimeoutRef.current = setTimeout(() => saveDraft(next), 1500);
+            saveDraftTimeoutRef.current = setTimeout(
+                () => persistDraft(next, currentQuestionRef.current),
+                1500
+            );
             return next;
         });
-    };
-
-    const fetchCorrectAnswer = async (questionId: string) => {
-        setLoadingCorrectId(questionId);
-        try {
-            const res = await fetch(
-                `/api/courses/${courseId}/quizzes/${quizId}/correct-answer?questionId=${encodeURIComponent(questionId)}`
-            );
-            if (res.ok) {
-                const data = await res.json();
-                setRevealedCorrect((prev) => ({ ...prev, [questionId]: data.correctAnswer }));
-                if (data.explanation) {
-                    setRevealedExplanation((prev) => ({ ...prev, [questionId]: data.explanation }));
-                }
-            } else {
-                toast.error("تعذر تحميل الإجابة الصحيحة");
-            }
-        } catch {
-            toast.error("تعذر تحميل الإجابة الصحيحة");
-        } finally {
-            setLoadingCorrectId(null);
-        }
     };
 
     const handleTranslateQuiz = async () => {
@@ -316,7 +266,10 @@ export default function QuizPage({
                 ? prev.map(a => a.questionId === questionId ? { ...a, answer: nextAnswer } : a)
                 : [...prev, { questionId, answer: nextAnswer }];
             if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current);
-            saveDraftTimeoutRef.current = setTimeout(() => saveDraft(next), 1500);
+            saveDraftTimeoutRef.current = setTimeout(
+                () => persistDraft(next, currentQuestionRef.current),
+                1500
+            );
             return next;
         });
     };
@@ -433,8 +386,8 @@ export default function QuizPage({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                disabled={savingDraft || answers.length === 0}
-                                onClick={() => saveDraft(answers, true)}
+                                disabled={savingDraft}
+                                onClick={() => persistDraft(answers, currentQuestion, true)}
                                 className="flex items-center gap-2"
                             >
                                 <Save className="h-4 w-4" />
@@ -499,11 +452,6 @@ export default function QuizPage({
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            {revealedCorrect[currentQuestionData.id] != null && (
-                                <div className="rounded-md bg-muted/80 px-3 py-1.5 text-sm text-muted-foreground inline-flex items-center gap-1">
-                                    تم تحديد السؤال — لا يمكن تعديل الإجابة
-                                </div>
-                            )}
                             <div className="text-lg auto-dir">
                                 {translatedQuiz?.questions[currentQuestion]?.text ?? currentQuestionData.text}
                             </div>
@@ -520,13 +468,12 @@ export default function QuizPage({
                             )}
 
                             {currentQuestionData.type === "MULTIPLE_CHOICE" && (
-                                <div className={`space-y-3 ${revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}`}>
+                                <div className="space-y-3">
                                     <p className="text-sm text-muted-foreground">يمكنك اختيار أكثر من إجابة</p>
                                     {(() => {
                                         const opts = translatedQuiz?.questions[currentQuestion]?.options ??
                                             (Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null));
                                         const origOpts = Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null);
-                                        const isLocked = revealedCorrect[currentQuestionData.id] != null;
                                         return opts.map((option: string, index: number) => {
                                             const origOption = origOpts[index] ?? option;
                                             const raw = answers.find(a => a.questionId === currentQuestionData.id)?.answer ?? "";
@@ -542,7 +489,6 @@ export default function QuizPage({
                                                     <Checkbox
                                                         id={`option-${currentQuestionData.id}-${index}`}
                                                         checked={selected}
-                                                        disabled={isLocked}
                                                         onCheckedChange={() => handleMultipleChoiceToggle(currentQuestionData.id, origOption)}
                                                     />
                                                     <Label htmlFor={`option-${currentQuestionData.id}-${index}`} className="cursor-pointer flex-1 auto-dir">{option}</Label>
@@ -554,22 +500,19 @@ export default function QuizPage({
                             )}
 
                             {currentQuestionData.type === "TRUE_FALSE" && (
-                                <div className={revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}>
-                                    <RadioGroup
-                                        value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
-                                        onValueChange={(value) => handleAnswerChange(currentQuestionData.id, value)}
-                                        disabled={revealedCorrect[currentQuestionData.id] != null}
-                                    >
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="true" id={`true-${currentQuestionData.id}`} disabled={revealedCorrect[currentQuestionData.id] != null} />
-                                            <Label htmlFor={`true-${currentQuestionData.id}`}>صح</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="false" id={`false-${currentQuestionData.id}`} disabled={revealedCorrect[currentQuestionData.id] != null} />
-                                            <Label htmlFor={`false-${currentQuestionData.id}`}>خطأ</Label>
-                                        </div>
-                                    </RadioGroup>
-                                </div>
+                                <RadioGroup
+                                    value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
+                                    onValueChange={(value) => handleAnswerChange(currentQuestionData.id, value)}
+                                >
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="true" id={`true-${currentQuestionData.id}`} />
+                                        <Label htmlFor={`true-${currentQuestionData.id}`}>صح</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="false" id={`false-${currentQuestionData.id}`} />
+                                        <Label htmlFor={`false-${currentQuestionData.id}`}>خطأ</Label>
+                                    </div>
+                                </RadioGroup>
                             )}
 
                             {currentQuestionData.type === "SHORT_ANSWER" && (
@@ -578,53 +521,7 @@ export default function QuizPage({
                                     value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
                                     onChange={(e) => handleAnswerChange(currentQuestionData.id, e.target.value)}
                                     rows={4}
-                                    disabled={revealedCorrect[currentQuestionData.id] != null}
-                                    className={revealedCorrect[currentQuestionData.id] != null ? "opacity-80" : ""}
                                 />
-                            )}
-
-                            {/* Show correct answer (after student has answered) */}
-                            {answers.some((a) => a.questionId === currentQuestionData.id) && (
-                                <div className="pt-2 border-t space-y-2">
-                                    {revealedCorrect[currentQuestionData.id] == null ? (
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            size="sm"
-                                            disabled={loadingCorrectId === currentQuestionData.id}
-                                            onClick={() => fetchCorrectAnswer(currentQuestionData.id)}
-                                            className="gap-2"
-                                        >
-                                            <Eye className="h-4 w-4" />
-                                            {loadingCorrectId === currentQuestionData.id ? "جاري التحميل..." : "عرض الإجابة الصحيحة"}
-                                        </Button>
-                                    ) : (
-                                        <div className="rounded-md bg-muted p-3 text-sm space-y-2">
-                                            <div>
-                                                <span className="font-medium text-muted-foreground">
-                                                    {translatedQuiz ? "Correct answer: " : "الإجابة الصحيحة: "}
-                                                </span>
-                                                <span>
-                                                    {translatedQuiz && revealedCorrectTranslated[currentQuestionData.id] != null
-                                                        ? revealedCorrectTranslated[currentQuestionData.id]
-                                                        : revealedCorrect[currentQuestionData.id]}
-                                                </span>
-                                            </div>
-                                            {(revealedExplanation[currentQuestionData.id] || revealedExplanationTranslated[currentQuestionData.id]) && (
-                                                <div className="pt-2 border-t border-muted-foreground/20">
-                                                    <span className="font-medium text-muted-foreground block mb-1">
-                                                        {translatedQuiz ? "Explanation: " : "الشرح: "}
-                                                    </span>
-                                                    <span>
-                                                        {translatedQuiz && revealedExplanationTranslated[currentQuestionData.id] != null
-                                                            ? revealedExplanationTranslated[currentQuestionData.id]
-                                                            : revealedExplanation[currentQuestionData.id]}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
                             )}
                         </CardContent>
                     </Card>
@@ -633,7 +530,7 @@ export default function QuizPage({
                     <div className="flex items-center justify-between">
                         <Button
                             variant="outline"
-                            onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))}
+                            onClick={() => goToQuestion(Math.max(0, currentQuestion - 1))}
                             disabled={currentQuestion === 0}
                         >
                             السابق
@@ -650,7 +547,7 @@ export default function QuizPage({
                                 </Button>
                             ) : (
                                 <Button
-                                    onClick={() => setCurrentQuestion(currentQuestion + 1)}
+                                    onClick={() => goToQuestion(currentQuestion + 1)}
                                     className="bg-primary hover:bg-primary/90"
                                 >
                                     التالي
@@ -668,8 +565,8 @@ export default function QuizPage({
                             </div>
                             <p className="text-amber-700 dark:text-amber-200 mt-2">
                                 {quiz.maxAttempts > 1 
-                                    ? `تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. يمكنك إعادة الاختبار ${quiz.maxAttempts - (quiz.currentAttempt || 1)} مرات أخرى.`
-                                    : "تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. لا يمكنك العودة للاختبار بعد الإرسال."
+                                    ? `تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. ستظهر الإجابات الصحيحة والشروحات بعد إنهاء الاختبار. يمكنك إعادة الاختبار ${quiz.maxAttempts - (quiz.currentAttempt || 1)} مرات أخرى.`
+                                    : "تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. ستظهر الإجابات الصحيحة والشروحات بعد إنهاء الاختبار."
                                 }
                             </p>
                         </CardContent>

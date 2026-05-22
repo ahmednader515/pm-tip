@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { HeaderLogo } from "@/components/header-logo";
 import { Button } from "@/components/ui/button";
 import { useSession, signOut } from "next-auth/react";
 import { ScrollProgress } from "@/components/scroll-progress";
@@ -27,17 +27,12 @@ export const Navbar = () => {
     <div className="fixed top-0 w-full z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-20">
-          {/* Logo */}
-          <Link href="/" className="flex items-center shrink-0 w-14 h-14 md:w-16 md:h-16 relative">
-            <Image
-              src="/logo.png"
-              alt="Logo"
-              fill
-              className="object-contain"
-              unoptimized
-              sizes="64px"
-            />
-          </Link>
+          <HeaderLogo
+            asLink
+            className="w-14 h-14 md:w-16 md:h-16"
+            sizes="64px"
+            alt="Logo"
+          />
 
           {/* Right side items */}
           <div className="flex items-center gap-4">

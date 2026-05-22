@@ -5,6 +5,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Footer } from "@/components/footer";
 import { NavigationLoading } from "@/components/navigation-loading";
+import { getCachedHomepageContent } from "@/lib/homepage-db";
 import { Suspense } from "react";
 import { theme } from "@/lib/theme";
 
@@ -25,16 +26,27 @@ const cairo = localFont({
   preload: true,
 });
 
-export const metadata: Metadata = {
-  title: "منصة PM TIPS",
-  description: "منصة تعليمية متكاملة",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { headerLogoUrl } = await getCachedHomepageContent();
 
-export default function RootLayout({
+  return {
+    title: "منصة PM TIPS",
+    description: "منصة تعليمية متكاملة",
+    icons: {
+      icon: [{ url: headerLogoUrl }],
+      shortcut: [{ url: headerLogoUrl }],
+      apple: [{ url: headerLogoUrl }],
+    },
+  };
+}
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const homepageSettings = await getCachedHomepageContent();
+
   return (
     <html suppressHydrationWarning lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} ${cairo.variable}`}>
       <body suppressHydrationWarning className="font-cairo">
@@ -49,7 +61,7 @@ export default function RootLayout({
             `,
           }}
         />
-        <Providers>
+        <Providers homepageSettings={homepageSettings}>
           <Suspense fallback={null}>
             <NavigationLoading />
           </Suspense>

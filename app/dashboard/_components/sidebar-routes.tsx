@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart, Compass, Layout, List, Wallet, Shield, Users, Eye, TrendingUp, BookOpen, FileText, Award, PlusSquare, Key, Ticket, CalendarCheck } from "lucide-react";
+import { BarChart, Compass, Layout, List, Wallet, Shield, Users, Eye, TrendingUp, BookOpen, FileText, Award, PlusSquare, Key, Ticket, CalendarCheck, ShoppingBag, Home } from "lucide-react";
 import { SidebarItem } from "./sidebar-item";
 import { usePathname } from "next/navigation";
 
@@ -14,6 +14,11 @@ const guestRoutes = [
         icon: Compass,
         label: "الكورسات",
         href: "/dashboard/search",
+    },
+    {
+        icon: ShoppingBag,
+        label: "المتجر",
+        href: "/dashboard/store",
     },
     {
         icon: CalendarCheck,
@@ -89,6 +94,16 @@ const teacherRoutes = [
         href: "/dashboard/teacher/codes",
     },
     {
+        icon: ShoppingBag,
+        label: "المتجر",
+        href: "/dashboard/teacher/store",
+    },
+    {
+        icon: Home,
+        label: "الصفحة الرئيسية",
+        href: "/dashboard/teacher/homepage",
+    },
+    {
         icon: Shield,
         label: "إنشاء حساب طالب",
         href: "/dashboard/teacher/create-account",
@@ -140,6 +155,16 @@ const adminRoutes = [
         icon: Ticket,
         label: "الاكواد",
         href: "/dashboard/admin/codes",
+    },
+    {
+        icon: ShoppingBag,
+        label: "المتجر",
+        href: "/dashboard/admin/store",
+    },
+    {
+        icon: Home,
+        label: "الصفحة الرئيسية",
+        href: "/dashboard/admin/homepage",
     },
 ];
 

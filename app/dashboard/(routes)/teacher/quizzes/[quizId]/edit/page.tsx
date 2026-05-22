@@ -1141,7 +1141,7 @@ const EditQuizPage = () => {
                                     <Textarea
                                         value={question.explanation ?? ""}
                                         onChange={(e) => updateQuestion(index, "explanation", e.target.value)}
-                                        placeholder="أدخل شرحاً للإجابة الصحيحة يظهر للطالب عند عرض الإجابة"
+                                        placeholder="أدخل شرحاً للإجابة الصحيحة يظهر للطالب بعد إنهاء الاختبار"
                                         rows={3}
                                         className="resize-none"
                                     />
