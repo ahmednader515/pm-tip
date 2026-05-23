@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Clock, AlertCircle, Save, Languages } from "lucide-react";
+import { ArrowLeft, Clock, AlertCircle, Save, Eye, Languages } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { parseQuizOptions } from "@/lib/utils";
 
@@ -39,6 +39,24 @@ interface QuizAnswer {
     answer: string; // for MULTIPLE_CHOICE: JSON array of selected option strings; else single string
 }
 
+function hasAnsweredQuestion(
+    answers: QuizAnswer[],
+    questionId: string,
+    questionType: Question["type"]
+): boolean {
+    const entry = answers.find((a) => a.questionId === questionId);
+    if (!entry?.answer?.trim()) return false;
+    if (questionType === "MULTIPLE_CHOICE") {
+        try {
+            const parsed = JSON.parse(entry.answer);
+            return Array.isArray(parsed) && parsed.length > 0;
+        } catch {
+            return entry.answer.trim().length > 0;
+        }
+    }
+    return entry.answer.trim().length > 0;
+}
+
 export default function QuizPage({
     params,
 }: {
@@ -63,6 +81,11 @@ export default function QuizPage({
     const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
     const saveDraftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const currentQuestionRef = useRef(0);
+    const [revealedCorrect, setRevealedCorrect] = useState<Record<string, string>>({});
+    const [revealedCorrectTranslated, setRevealedCorrectTranslated] = useState<Record<string, string>>({});
+    const [revealedExplanation, setRevealedExplanation] = useState<Record<string, string>>({});
+    const [revealedExplanationTranslated, setRevealedExplanationTranslated] = useState<Record<string, string>>({});
+    const [loadingCorrectId, setLoadingCorrectId] = useState<string | null>(null);
     const [translating, setTranslating] = useState(false);
     const [translatedQuiz, setTranslatedQuiz] = useState<{
         questions: { text: string; options?: string[] }[];
@@ -88,6 +111,59 @@ export default function QuizPage({
             if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current);
         };
     }, []);
+
+    useEffect(() => {
+        if (!translatedQuiz) return;
+        const toTranslate = Object.entries(revealedCorrect).filter(
+            ([id, text]) => text && !revealedCorrectTranslated[id]
+        );
+        const toTranslateExpl = Object.entries(revealedExplanation).filter(
+            ([id, text]) => text && !revealedExplanationTranslated[id]
+        );
+        if (toTranslate.length === 0 && toTranslateExpl.length === 0) return;
+        (async () => {
+            for (const [questionId, text] of toTranslate) {
+                try {
+                    const res = await fetch("/api/translate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ texts: [text] }),
+                    });
+                    if (res.ok) {
+                        const { translations } = await res.json();
+                        if (Array.isArray(translations) && translations[0]) {
+                            setRevealedCorrectTranslated((prev) => ({
+                                ...prev,
+                                [questionId]: translations[0],
+                            }));
+                        }
+                    }
+                } catch {
+                    // keep original
+                }
+            }
+            for (const [questionId, text] of toTranslateExpl) {
+                try {
+                    const res = await fetch("/api/translate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ texts: [text] }),
+                    });
+                    if (res.ok) {
+                        const { translations } = await res.json();
+                        if (Array.isArray(translations) && translations[0]) {
+                            setRevealedExplanationTranslated((prev) => ({
+                                ...prev,
+                                [questionId]: translations[0],
+                            }));
+                        }
+                    }
+                } catch {
+                    // keep original
+                }
+            }
+        })();
+    }, [translatedQuiz, revealedCorrect, revealedExplanation]);
 
     useEffect(() => {
         if (quiz?.timer != null && timeLeft > 0) {
@@ -199,6 +275,28 @@ export default function QuizPage({
             );
             return next;
         });
+    };
+
+    const fetchCorrectAnswer = async (questionId: string) => {
+        setLoadingCorrectId(questionId);
+        try {
+            const res = await fetch(
+                `/api/courses/${courseId}/quizzes/${quizId}/correct-answer?questionId=${encodeURIComponent(questionId)}`
+            );
+            if (res.ok) {
+                const data = await res.json();
+                setRevealedCorrect((prev) => ({ ...prev, [questionId]: data.correctAnswer }));
+                if (data.explanation) {
+                    setRevealedExplanation((prev) => ({ ...prev, [questionId]: data.explanation }));
+                }
+            } else {
+                toast.error("تعذر تحميل الإجابة الصحيحة");
+            }
+        } catch {
+            toast.error("تعذر تحميل الإجابة الصحيحة");
+        } finally {
+            setLoadingCorrectId(null);
+        }
     };
 
     const handleTranslateQuiz = async () => {
@@ -452,6 +550,11 @@ export default function QuizPage({
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
+                            {revealedCorrect[currentQuestionData.id] != null && (
+                                <div className="rounded-md bg-muted/80 px-3 py-1.5 text-sm text-muted-foreground inline-flex items-center gap-1">
+                                    تم تحديد السؤال — لا يمكن تعديل الإجابة
+                                </div>
+                            )}
                             <div className="text-lg auto-dir">
                                 {translatedQuiz?.questions[currentQuestion]?.text ?? currentQuestionData.text}
                             </div>
@@ -468,12 +571,13 @@ export default function QuizPage({
                             )}
 
                             {currentQuestionData.type === "MULTIPLE_CHOICE" && (
-                                <div className="space-y-3">
+                                <div className={`space-y-3 ${revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}`}>
                                     <p className="text-sm text-muted-foreground">يمكنك اختيار أكثر من إجابة</p>
                                     {(() => {
                                         const opts = translatedQuiz?.questions[currentQuestion]?.options ??
                                             (Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null));
                                         const origOpts = Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null);
+                                        const isLocked = revealedCorrect[currentQuestionData.id] != null;
                                         return opts.map((option: string, index: number) => {
                                             const origOption = origOpts[index] ?? option;
                                             const raw = answers.find(a => a.questionId === currentQuestionData.id)?.answer ?? "";
@@ -489,6 +593,7 @@ export default function QuizPage({
                                                     <Checkbox
                                                         id={`option-${currentQuestionData.id}-${index}`}
                                                         checked={selected}
+                                                        disabled={isLocked}
                                                         onCheckedChange={() => handleMultipleChoiceToggle(currentQuestionData.id, origOption)}
                                                     />
                                                     <Label htmlFor={`option-${currentQuestionData.id}-${index}`} className="cursor-pointer flex-1 auto-dir">{option}</Label>
@@ -500,19 +605,30 @@ export default function QuizPage({
                             )}
 
                             {currentQuestionData.type === "TRUE_FALSE" && (
-                                <RadioGroup
-                                    value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
-                                    onValueChange={(value) => handleAnswerChange(currentQuestionData.id, value)}
-                                >
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="true" id={`true-${currentQuestionData.id}`} />
-                                        <Label htmlFor={`true-${currentQuestionData.id}`}>صح</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="false" id={`false-${currentQuestionData.id}`} />
-                                        <Label htmlFor={`false-${currentQuestionData.id}`}>خطأ</Label>
-                                    </div>
-                                </RadioGroup>
+                                <div className={revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}>
+                                    <RadioGroup
+                                        value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
+                                        onValueChange={(value) => handleAnswerChange(currentQuestionData.id, value)}
+                                        disabled={revealedCorrect[currentQuestionData.id] != null}
+                                    >
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem
+                                                value="true"
+                                                id={`true-${currentQuestionData.id}`}
+                                                disabled={revealedCorrect[currentQuestionData.id] != null}
+                                            />
+                                            <Label htmlFor={`true-${currentQuestionData.id}`}>صح</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem
+                                                value="false"
+                                                id={`false-${currentQuestionData.id}`}
+                                                disabled={revealedCorrect[currentQuestionData.id] != null}
+                                            />
+                                            <Label htmlFor={`false-${currentQuestionData.id}`}>خطأ</Label>
+                                        </div>
+                                    </RadioGroup>
+                                </div>
                             )}
 
                             {currentQuestionData.type === "SHORT_ANSWER" && (
@@ -521,7 +637,57 @@ export default function QuizPage({
                                     value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
                                     onChange={(e) => handleAnswerChange(currentQuestionData.id, e.target.value)}
                                     rows={4}
+                                    disabled={revealedCorrect[currentQuestionData.id] != null}
+                                    className={revealedCorrect[currentQuestionData.id] != null ? "opacity-80" : ""}
                                 />
+                            )}
+
+                            {hasAnsweredQuestion(answers, currentQuestionData.id, currentQuestionData.type) && (
+                                <div className="pt-2 border-t space-y-2">
+                                    {revealedCorrect[currentQuestionData.id] == null ? (
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="sm"
+                                            disabled={loadingCorrectId === currentQuestionData.id}
+                                            onClick={() => fetchCorrectAnswer(currentQuestionData.id)}
+                                            className="gap-2"
+                                        >
+                                            <Eye className="h-4 w-4" />
+                                            {loadingCorrectId === currentQuestionData.id
+                                                ? "جاري التحميل..."
+                                                : "عرض الإجابة الصحيحة"}
+                                        </Button>
+                                    ) : (
+                                        <div className="rounded-md bg-muted p-3 text-sm space-y-2">
+                                            <div>
+                                                <span className="font-medium text-muted-foreground">
+                                                    {translatedQuiz ? "Correct answer: " : "الإجابة الصحيحة: "}
+                                                </span>
+                                                <span>
+                                                    {translatedQuiz &&
+                                                    revealedCorrectTranslated[currentQuestionData.id] != null
+                                                        ? revealedCorrectTranslated[currentQuestionData.id]
+                                                        : revealedCorrect[currentQuestionData.id]}
+                                                </span>
+                                            </div>
+                                            {(revealedExplanation[currentQuestionData.id] ||
+                                                revealedExplanationTranslated[currentQuestionData.id]) && (
+                                                <div className="pt-2 border-t border-muted-foreground/20">
+                                                    <span className="font-medium text-muted-foreground block mb-1">
+                                                        {translatedQuiz ? "Explanation: " : "الشرح: "}
+                                                    </span>
+                                                    <span>
+                                                        {translatedQuiz &&
+                                                        revealedExplanationTranslated[currentQuestionData.id] != null
+                                                            ? revealedExplanationTranslated[currentQuestionData.id]
+                                                            : revealedExplanation[currentQuestionData.id]}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </CardContent>
                     </Card>
@@ -565,8 +731,8 @@ export default function QuizPage({
                             </div>
                             <p className="text-amber-700 dark:text-amber-200 mt-2">
                                 {quiz.maxAttempts > 1 
-                                    ? `تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. ستظهر الإجابات الصحيحة والشروحات بعد إنهاء الاختبار. يمكنك إعادة الاختبار ${quiz.maxAttempts - (quiz.currentAttempt || 1)} مرات أخرى.`
-                                    : "تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. ستظهر الإجابات الصحيحة والشروحات بعد إنهاء الاختبار."
+                                    ? `تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. يمكنك عرض الإجابة الصحيحة والشرح بعد الإجابة على كل سؤال. يمكنك إعادة الاختبار ${quiz.maxAttempts - (quiz.currentAttempt || 1)} مرات أخرى.`
+                                    : "تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. يمكنك عرض الإجابة الصحيحة والشرح بعد الإجابة على كل سؤال."
                                 }
                             </p>
                         </CardContent>
