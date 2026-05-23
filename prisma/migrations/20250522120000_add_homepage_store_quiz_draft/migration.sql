@@ -95,3 +95,5 @@ CREATE TABLE IF NOT EXISTS "HomepageSettings" (
 
 -- If QuizDraft already existed without currentQuestionIndex
 ALTER TABLE "QuizDraft" ADD COLUMN IF NOT EXISTS "currentQuestionIndex" INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE "QuizDraft" ADD COLUMN IF NOT EXISTS "revealedFeedback" JSONB NOT NULL DEFAULT '{}';

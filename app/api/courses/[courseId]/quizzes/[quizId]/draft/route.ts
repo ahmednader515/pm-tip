@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { hasCourseAccess } from "@/lib/course-access";
+import { normalizeRevealedFeedback } from "@/lib/quiz-draft";
 
 function clampQuestionIndex(index: number, questionCount: number): number {
     const max = Math.max(0, questionCount - 1);
@@ -32,13 +33,18 @@ export async function GET(
         });
 
         if (!draft) {
-            return NextResponse.json({ answers: [], currentQuestionIndex: 0 });
+            return NextResponse.json({
+                answers: [],
+                currentQuestionIndex: 0,
+                revealedFeedback: {},
+            });
         }
 
         const answers = (draft.answers as { questionId: string; answer: string }[]) || [];
         return NextResponse.json({
             answers,
             currentQuestionIndex: draft.currentQuestionIndex ?? 0,
+            revealedFeedback: normalizeRevealedFeedback(draft.revealedFeedback),
             updatedAt: draft.updatedAt,
         });
     } catch (error) {
@@ -55,7 +61,7 @@ export async function PUT(
         const { userId } = await auth();
         const resolvedParams = await params;
         const body = await req.json();
-        const { answers, currentQuestionIndex: rawIndex } = body;
+        const { answers, currentQuestionIndex: rawIndex, revealedFeedback: rawRevealed } = body;
 
         if (!userId) {
             return new NextResponse("Unauthorized", { status: 401 });
@@ -94,6 +100,18 @@ export async function PUT(
             ? clampQuestionIndex(rawIndex, questionCount)
             : undefined;
 
+        const existingDraft = await db.quizDraft.findUnique({
+            where: {
+                userId_quizId: { userId, quizId: resolvedParams.quizId },
+            },
+            select: { revealedFeedback: true },
+        });
+
+        const revealedFeedback =
+            rawRevealed !== undefined
+                ? normalizeRevealedFeedback(rawRevealed)
+                : normalizeRevealedFeedback(existingDraft?.revealedFeedback);
+
         await db.quizDraft.upsert({
             where: {
                 userId_quizId: { userId, quizId: resolvedParams.quizId },
@@ -103,9 +121,11 @@ export async function PUT(
                 quizId: resolvedParams.quizId,
                 answers: normalized,
                 currentQuestionIndex: clampedIndex ?? 0,
+                revealedFeedback,
             },
             update: {
                 answers: normalized,
+                revealedFeedback,
                 ...(clampedIndex !== undefined ? { currentQuestionIndex: clampedIndex } : {}),
             },
         });

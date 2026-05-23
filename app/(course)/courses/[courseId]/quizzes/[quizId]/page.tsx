@@ -13,6 +13,10 @@ import { toast } from "sonner";
 import { ArrowLeft, Clock, AlertCircle, Save, Eye, Languages } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { parseQuizOptions } from "@/lib/utils";
+import {
+    type RevealedFeedback,
+    revealedFeedbackToState,
+} from "@/lib/quiz-draft";
 
 interface Question {
     id: string;
@@ -81,6 +85,8 @@ export default function QuizPage({
     const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
     const saveDraftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const currentQuestionRef = useRef(0);
+    const revealedFeedbackRef = useRef<RevealedFeedback>({});
+    const answersRef = useRef<QuizAnswer[]>([]);
     const [revealedCorrect, setRevealedCorrect] = useState<Record<string, string>>({});
     const [revealedCorrectTranslated, setRevealedCorrectTranslated] = useState<Record<string, string>>({});
     const [revealedExplanation, setRevealedExplanation] = useState<Record<string, string>>({});
@@ -105,6 +111,10 @@ export default function QuizPage({
     useEffect(() => {
         currentQuestionRef.current = currentQuestion;
     }, [currentQuestion]);
+
+    useEffect(() => {
+        answersRef.current = answers;
+    }, [answers]);
 
     useEffect(() => {
         return () => {
@@ -175,6 +185,16 @@ export default function QuizPage({
         }
     }, [timeLeft, quiz?.timer]);
 
+    const isQuestionLocked = (questionId: string) =>
+        revealedFeedbackRef.current[questionId] != null;
+
+    const applyRevealedFeedback = (feedback: RevealedFeedback) => {
+        revealedFeedbackRef.current = feedback;
+        const { correct, explanation } = revealedFeedbackToState(feedback);
+        setRevealedCorrect(correct);
+        setRevealedExplanation(explanation);
+    };
+
     const fetchQuiz = async () => {
         try {
             const response = await fetch(`/api/courses/${courseId}/quizzes/${quizId}`);
@@ -189,6 +209,9 @@ export default function QuizPage({
                     const draftData = await draftRes.json();
                     if (draftData.answers?.length) {
                         setAnswers(draftData.answers);
+                    }
+                    if (draftData.revealedFeedback) {
+                        applyRevealedFeedback(draftData.revealedFeedback);
                     }
                     const max = data.questions.length - 1;
                     const idx = draftData.currentQuestionIndex ?? 0;
@@ -229,7 +252,8 @@ export default function QuizPage({
     const persistDraft = async (
         answersToSave: QuizAnswer[],
         questionIndex: number,
-        showToast = false
+        showToast = false,
+        feedback: RevealedFeedback = revealedFeedbackRef.current
     ) => {
         if (!courseId || !quizId) return;
         setSavingDraft(true);
@@ -240,6 +264,7 @@ export default function QuizPage({
                 body: JSON.stringify({
                     answers: answersToSave,
                     currentQuestionIndex: questionIndex,
+                    revealedFeedback: feedback,
                 }),
             });
             if (res.ok) {
@@ -260,6 +285,7 @@ export default function QuizPage({
     };
 
     const handleAnswerChange = (questionId: string, answer: string) => {
+        if (isQuestionLocked(questionId)) return;
         setAnswers(prev => {
             const next = (() => {
                 const existing = prev.find(a => a.questionId === questionId);
@@ -285,10 +311,20 @@ export default function QuizPage({
             );
             if (res.ok) {
                 const data = await res.json();
-                setRevealedCorrect((prev) => ({ ...prev, [questionId]: data.correctAnswer }));
-                if (data.explanation) {
-                    setRevealedExplanation((prev) => ({ ...prev, [questionId]: data.explanation }));
-                }
+                const nextFeedback: RevealedFeedback = {
+                    ...revealedFeedbackRef.current,
+                    [questionId]: {
+                        correctAnswer: data.correctAnswer,
+                        explanation: data.explanation ?? null,
+                    },
+                };
+                applyRevealedFeedback(nextFeedback);
+                await persistDraft(
+                    answersRef.current,
+                    currentQuestionRef.current,
+                    false,
+                    nextFeedback
+                );
             } else {
                 toast.error("تعذر تحميل الإجابة الصحيحة");
             }
@@ -344,6 +380,7 @@ export default function QuizPage({
     };
 
     const handleMultipleChoiceToggle = (questionId: string, optionText: string) => {
+        if (isQuestionLocked(questionId)) return;
         setAnswers(prev => {
             const existing = prev.find(a => a.questionId === questionId);
             let current: string[] = [];
