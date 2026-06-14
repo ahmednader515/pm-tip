@@ -381,3 +381,10 @@ model HomepageSettings {
     features        Json     // [{ title, description, icon }]
     updatedAt       DateTime @updatedAt
 }
+
+/// Singleton question bank display settings (id = "default")
+model QuestionBankSettings {
+    id          String   @id @default("default")
+    displayName String   @default("بنك الأسئلة")
+    updatedAt   DateTime @updatedAt
+}

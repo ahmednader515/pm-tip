@@ -1,8 +1,10 @@
 "use client";
 
-import { BarChart, Compass, Layout, List, Wallet, Shield, Users, Eye, TrendingUp, BookOpen, FileText, Award, PlusSquare, Key, Ticket, CalendarCheck, ShoppingBag, Home } from "lucide-react";
+import { BarChart, Compass, Layout, List, Wallet, Shield, Users, Eye, TrendingUp, BookOpen, FileText, Award, PlusSquare, Key, Ticket, CalendarCheck, ShoppingBag, Home, MessageCircle } from "lucide-react";
 import { SidebarItem } from "./sidebar-item";
 import { usePathname } from "next/navigation";
+import { useQuestionBankSettings } from "@/components/question-bank-settings-provider";
+import { DEFAULT_QUESTION_BANK_DISPLAY_NAME } from "@/lib/question-bank-settings";
 
 const guestRoutes = [
     {
@@ -36,6 +38,12 @@ const guestRoutes = [
         href: "/dashboard/quizzes",
     },
     {
+        icon: MessageCircle,
+        label: DEFAULT_QUESTION_BANK_DISPLAY_NAME,
+        href: "/dashboard/question-bank",
+        dynamicLabel: true,
+    },
+    {
         icon: Award,
         label: "الشهادات",
         href: "/dashboard/certificates",
@@ -57,6 +65,11 @@ const teacherRoutes = [
         icon: FileText,
         label: "الاختبارات",
         href: "/dashboard/teacher/quizzes",
+    },
+    {
+        icon: MessageCircle,
+        label: "بنك الأسئلة",
+        href: "/dashboard/teacher/question-bank",
     },
     {
         icon: Award,
@@ -127,6 +140,11 @@ const adminRoutes = [
         href: "/dashboard/admin/quizzes",
     },
     {
+        icon: MessageCircle,
+        label: "بنك الأسئلة",
+        href: "/dashboard/admin/question-bank",
+    },
+    {
         icon: Shield,
         label: "إنشاء حساب طالب",
         href: "/dashboard/admin/create-account",
@@ -170,6 +188,7 @@ const adminRoutes = [
 
 export const SidebarRoutes = ({ closeOnClick = false }: { closeOnClick?: boolean }) => {
     const pathName = usePathname();
+    const { displayName } = useQuestionBankSettings();
 
     const isTeacherPage = pathName?.includes("/dashboard/teacher");
     const isAdminPage = pathName?.includes("/dashboard/admin");
@@ -181,7 +200,11 @@ export const SidebarRoutes = ({ closeOnClick = false }: { closeOnClick?: boolean
                 <SidebarItem
                   key={route.href}
                   icon={route.icon}
-                  label={route.label}
+                  label={
+                    "dynamicLabel" in route && route.dynamicLabel
+                      ? displayName
+                      : route.label
+                  }
                   href={route.href}
                   closeOnClick={closeOnClick}
                 />
