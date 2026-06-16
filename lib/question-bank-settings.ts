@@ -38,5 +38,5 @@ export function parseQuestionBankSettingsUpdateBody(
 }
 
 export function getWelcomeMessage(displayName: string): string {
-  return `مرحباً! ابحث في ${displayName} بكتابة كلمات مفتاحية متعلقة بأي سؤال. سأعرض لك السؤال كاملاً مع الخيارات والإجابة الصحيحة والشرح.`;
+  return `مرحباً! أنا ${displayName}. تحدث معي بشكل طبيعي واسأل عن أي موضوع في الاختبارات — سأجيبك بناءً على أسئلة وإجابات بنك الأسئلة لدينا.`;
 }

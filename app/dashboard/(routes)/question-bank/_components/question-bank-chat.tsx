@@ -5,18 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import { toast } from "sonner";
-import type { QuestionBankResult } from "@/lib/question-bank";
 import { getWelcomeMessage } from "@/lib/question-bank-settings";
-import { QuestionResultCard } from "./question-result-card";
 
-type ChatMessage =
-  | { id: string; role: "user"; content: string }
-  | {
-      id: string;
-      role: "bot";
-      content: string;
-      results?: QuestionBankResult[];
-    };
+type ChatMessage = {
+  id: string;
+  role: "user" | "bot";
+  content: string;
+};
 
 const EXAMPLE_PROMPTS = ["إدارة المخاطر", "PMBOK", "الجدول الزمني"];
 
@@ -50,7 +45,15 @@ export function QuestionBankChat({ displayName }: QuestionBankChatProps) {
     );
   }, [displayName]);
 
-  const handleSearch = async (query: string) => {
+  const buildHistory = (currentMessages: ChatMessage[]) =>
+    currentMessages
+      .filter((m) => m.id !== "welcome")
+      .map((m) => ({
+        role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+        content: m.content,
+      }));
+
+  const handleSend = async (query: string) => {
     const trimmed = query.trim();
     if (!trimmed || loading) return;
 
@@ -60,61 +63,74 @@ export function QuestionBankChat({ displayName }: QuestionBankChatProps) {
       content: trimmed,
     };
 
+    const history = buildHistory(messages);
+
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
 
     try {
-      const res = await fetch("/api/student/question-bank/search", {
+      const res = await fetch("/api/student/question-bank/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: trimmed }),
+        body: JSON.stringify({ message: trimmed, history }),
       });
 
       if (!res.ok) {
-        toast.error("فشل البحث في بنك الأسئلة");
+        let errMessage =
+          "حدث خطأ أثناء المعالجة. يرجى المحاولة مرة أخرى.";
+
+        const errText = await res.text();
+        try {
+          const data = JSON.parse(errText) as { message?: string };
+          if (typeof data.message === "string" && data.message.trim()) {
+            errMessage = data.message.trim();
+          }
+        } catch {
+          if (errText.trim()) errMessage = errText;
+        }
+
+        if (res.status === 503) {
+          toast.error("خدمة الذكاء الاصطناعي غير متاحة حالياً");
+        } else if (res.status === 429) {
+          toast.error("تم تجاوز حد الاستخدام مؤقتاً");
+        } else {
+          toast.error("فشل إرسال الرسالة");
+        }
+
         setMessages((prev) => [
           ...prev,
           {
             id: `bot-error-${Date.now()}`,
             role: "bot",
-            content: "حدث خطأ أثناء البحث. يرجى المحاولة مرة أخرى.",
+            content: errMessage,
           },
         ]);
         return;
       }
 
       const data = await res.json();
-      const results: QuestionBankResult[] = data.results ?? [];
+      const reply =
+        typeof data.message === "string" && data.message.trim()
+          ? data.message.trim()
+          : "عذراً، لم أتمكن من إعداد إجابة. يرجى إعادة صياغة سؤالك.";
 
-      if (results.length === 0) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `bot-empty-${Date.now()}`,
-            role: "bot",
-            content: "لم يتم العثور على أسئلة مطابقة. جرّب كلمات مفتاحية أخرى.",
-          },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `bot-results-${Date.now()}`,
-            role: "bot",
-            content: `تم العثور على ${results.length} ${results.length === 1 ? "سؤال" : "أسئلة"}:`,
-            results,
-          },
-        ]);
-      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `bot-${Date.now()}`,
+          role: "bot",
+          content: reply,
+        },
+      ]);
     } catch {
-      toast.error("فشل البحث في بنك الأسئلة");
+      toast.error("فشل إرسال الرسالة");
       setMessages((prev) => [
         ...prev,
         {
           id: `bot-error-${Date.now()}`,
           role: "bot",
-          content: "حدث خطأ أثناء البحث. يرجى المحاولة مرة أخرى.",
+          content: "حدث خطأ أثناء المعالجة. يرجى المحاولة مرة أخرى.",
         },
       ]);
     } finally {
@@ -124,7 +140,7 @@ export function QuestionBankChat({ displayName }: QuestionBankChatProps) {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    handleSearch(input);
+    handleSend(input);
   };
 
   return (
@@ -136,7 +152,7 @@ export function QuestionBankChat({ displayName }: QuestionBankChatProps) {
             className={`flex ${message.role === "user" ? "justify-start" : "justify-end"}`}
           >
             <div
-              className={`max-w-[90%] space-y-3 ${
+              className={`max-w-[90%] ${
                 message.role === "user"
                   ? "rounded-2xl rounded-tr-sm bg-brand text-white px-4 py-3"
                   : "rounded-2xl rounded-tl-sm bg-muted px-4 py-3 w-full max-w-2xl"
@@ -151,19 +167,12 @@ export function QuestionBankChat({ displayName }: QuestionBankChatProps) {
                 </div>
               )}
               <p
-                className={`text-sm leading-relaxed ${
+                className={`text-sm leading-relaxed whitespace-pre-wrap ${
                   message.role === "user" ? "text-white" : "text-foreground"
                 }`}
               >
                 {message.content}
               </p>
-              {message.role === "bot" && message.results && (
-                <div className="space-y-3 pt-1">
-                  {message.results.map((question) => (
-                    <QuestionResultCard key={question.id} question={question} />
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         ))}
@@ -172,7 +181,7 @@ export function QuestionBankChat({ displayName }: QuestionBankChatProps) {
           <div className="flex justify-end">
             <div className="rounded-2xl rounded-tl-sm bg-muted px-4 py-3 flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">جاري البحث...</span>
+              <span className="text-sm text-muted-foreground">جاري الكتابة...</span>
             </div>
           </div>
         )}
@@ -189,7 +198,7 @@ export function QuestionBankChat({ displayName }: QuestionBankChatProps) {
               variant="outline"
               size="sm"
               disabled={loading}
-              onClick={() => handleSearch(prompt)}
+              onClick={() => handleSend(prompt)}
               className="text-xs"
             >
               {prompt}
@@ -201,7 +210,7 @@ export function QuestionBankChat({ displayName }: QuestionBankChatProps) {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="اكتب كلمات مفتاحية للبحث في الأسئلة..."
+            placeholder="اكتب رسالتك هنا..."
             disabled={loading}
             className="flex-1 h-11"
           />
