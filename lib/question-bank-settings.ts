@@ -38,5 +38,5 @@ export function parseQuestionBankSettingsUpdateBody(
 }
 
 export function getWelcomeMessage(displayName: string): string {
-  return `مرحباً! أنا ${displayName}. تحدث معي بشكل طبيعي واسأل عن أي موضوع في الاختبارات — سأجيبك بناءً على أسئلة وإجابات بنك الأسئلة لدينا.`;
+  return `مرحباً في ${displayName}. كيف يمكنني مساعدتك اليوم؟`;
 }

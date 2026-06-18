@@ -1,9 +1,7 @@
 import { searchQuestions, type QuestionBankResult } from "@/lib/question-bank";
+import type { ChatHistoryMessage } from "@/lib/gemini/multimodal";
 
-export type ChatHistoryMessage = {
-  role: "user" | "assistant";
-  content: string;
-};
+export type { ChatHistoryMessage };
 
 const MAX_CONTEXT_QUESTIONS = 12;
 
@@ -67,17 +65,8 @@ export async function fetchRelevantQuestionContext(
 export function buildQuestionBankSystemInstruction(
   questionContext: string
 ): string {
-  return `أنت مساعد ذكي ودود لطلاب اختبارات PMP. تحدث بشكل طبيعي ومباشر مثل محادثة عادية في Gemini.
+  return `Use the following question bank as your reference when answering.
+If the answer is not in this data, say you could not find it in the question bank.
 
-مهمتك:
-- أجب على أسئلة الطالب بناءً على بيانات بنك الأسئلة المرفقة أدناه فقط.
-- لا تخترع أسئلة أو إجابات أو شروحات غير موجودة في البيانات.
-- إذا لم تجد معلومة في البيانات، قل ذلك بوضوح واقترح إعادة الصياغة.
-- عند ذكر سؤال من البنك، اذكر نصه والخيارات والإجابة الصحيحة والشرح كما هي في البيانات.
-- أجب بالعربية مع الإبقاء على المصطلحات الإنجليزية عند الحاجة (مثل PMBOK).
-- استخدم سياق المحادثة السابقة للمتابعة والأسئلة التوضيحية.
-
-=== بيانات بنك الأسئلة (المصدر الوحيد للإجابات) ===
-${questionContext}
-=== نهاية بيانات بنك الأسئلة ===`;
+${questionContext}`;
 }
