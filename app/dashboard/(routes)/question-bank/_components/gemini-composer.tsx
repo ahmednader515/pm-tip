@@ -7,7 +7,7 @@ import {
   fileToChatAttachment,
   isImageMimeType,
   type ChatAttachment,
-} from "@/lib/gemini/multimodal";
+} from "@/lib/chat/multimodal";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -131,7 +131,7 @@ export function GeminiComposer({
                 e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
               }}
               onKeyDown={handleKeyDown}
-              placeholder="اسأل Gemini..."
+              placeholder="اسأل ChatGPT..."
               disabled={disabled || streaming}
               rows={1}
               className={cn(
@@ -165,7 +165,7 @@ export function GeminiComposer({
           </div>
 
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            قد يرتكب Gemini أخطاء. تحقق من المعلومات المهمة.
+            قد يرتكب ChatGPT أخطاء. تحقق من المعلومات المهمة.
           </p>
         </form>
       </div>

@@ -15,7 +15,31 @@ export type QuestionBankResult = {
 };
 
 const MAX_RESULTS = 15;
+const MAX_ALL_QUESTIONS = 150;
 const MIN_WORD_LENGTH = 2;
+
+const publishedQuestionSelect = {
+  id: true,
+  text: true,
+  type: true,
+  options: true,
+  correctAnswer: true,
+  explanation: true,
+  imageUrl: true,
+  quiz: {
+    select: {
+      title: true,
+      course: { select: { title: true } },
+    },
+  },
+} as const;
+
+const publishedQuestionFilter = {
+  quiz: {
+    isPublished: true,
+    course: { isPublished: true },
+  },
+} satisfies Prisma.QuestionWhereInput;
 
 function formatDisplayAnswer(
   type: string,
@@ -121,4 +145,17 @@ export async function searchQuestions(
     results: questions.map(mapQuestionToResult),
     total: questions.length,
   };
+}
+
+export async function getAllPublishedQuestions(
+  limit = MAX_ALL_QUESTIONS
+): Promise<QuestionBankResult[]> {
+  const questions = await db.question.findMany({
+    where: publishedQuestionFilter,
+    take: limit,
+    orderBy: [{ quiz: { course: { title: "asc" } } }, { position: "asc" }],
+    select: publishedQuestionSelect,
+  });
+
+  return questions.map(mapQuestionToResult);
 }

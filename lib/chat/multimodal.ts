@@ -1,5 +1,3 @@
-import type { Content, Part } from "@google/generative-ai";
-
 export type ChatAttachment = {
   mimeType: string;
   data: string;
@@ -74,49 +72,8 @@ function estimateBase64Bytes(base64: string): number {
   return Math.floor((normalized.length * 3) / 4);
 }
 
-export function buildUserParts(
-  text: string,
-  attachments: ChatAttachment[] = []
-): Part[] {
-  const parts: Part[] = [];
-
-  for (const attachment of attachments) {
-    const data = attachment.data.includes(",")
-      ? attachment.data.split(",").pop()!
-      : attachment.data;
-
-    parts.push({
-      inlineData: {
-        mimeType: attachment.mimeType,
-        data,
-      },
-    });
-  }
-
-  const trimmedText = text.trim();
-  if (trimmedText) {
-    parts.push({ text: trimmedText });
-  } else if (attachments.length > 0) {
-    parts.push({ text: "Please analyze the attached file(s)." });
-  }
-
-  return parts;
-}
-
-export function toGeminiHistory(history: ChatHistoryMessage[]): Content[] {
-  return history.map((message) => {
-    if (message.role === "assistant") {
-      return {
-        role: "model" as const,
-        parts: [{ text: message.content }],
-      };
-    }
-
-    return {
-      role: "user" as const,
-      parts: buildUserParts(message.content, message.attachments ?? []),
-    };
-  });
+export function normalizeBase64(data: string): string {
+  return data.includes(",") ? data.split(",").pop()! : data;
 }
 
 export async function fileToChatAttachment(file: File): Promise<ChatAttachment> {

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { MessageCircle, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { getWelcomeMessage } from "@/lib/question-bank-settings";
-import type { ChatAttachment, ChatHistoryMessage } from "@/lib/gemini/multimodal";
+import type { ChatAttachment, ChatHistoryMessage } from "@/lib/chat/multimodal";
 import { GeminiComposer } from "./gemini-composer";
 import { GeminiMessage, type UIMessage } from "./gemini-message";
 

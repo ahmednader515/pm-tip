@@ -609,7 +609,6 @@ export default function QuizPage({
 
                             {currentQuestionData.type === "MULTIPLE_CHOICE" && (
                                 <div className={`space-y-3 ${revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}`}>
-                                    <p className="text-sm text-muted-foreground">يمكنك اختيار أكثر من إجابة</p>
                                     {(() => {
                                         const opts = translatedQuiz?.questions[currentQuestion]?.options ??
                                             (Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null));

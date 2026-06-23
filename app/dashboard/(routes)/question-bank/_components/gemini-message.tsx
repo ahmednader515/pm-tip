@@ -7,7 +7,7 @@ import { GeminiMarkdown } from "./gemini-markdown";
 import {
   isImageMimeType,
   type ChatAttachment,
-} from "@/lib/gemini/multimodal";
+} from "@/lib/chat/multimodal";
 import { cn } from "@/lib/utils";
 
 export type UIMessage = {

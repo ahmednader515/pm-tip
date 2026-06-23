@@ -1,13 +1,13 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getGeminiApiKey } from "@/lib/gemini/client";
-import { isGeminiQuotaError } from "@/lib/gemini/errors";
+import { getOpenAIApiKey } from "@/lib/openai/client";
+import { isOpenAIQuotaError } from "@/lib/openai/errors";
 import {
   validateAttachments,
   type ChatAttachment,
   type ChatHistoryMessage,
-} from "@/lib/gemini/multimodal";
-import { streamQuestionBankChat } from "@/lib/gemini/stream-chat";
+} from "@/lib/chat/multimodal";
+import { streamQuestionBankChat } from "@/lib/openai/stream-chat";
 
 function parseAttachments(raw: unknown): ChatAttachment[] {
   if (!Array.isArray(raw)) return [];
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  if (!getGeminiApiKey()) {
+  if (!getOpenAIApiKey()) {
     return new Response(
       sseEncode({
         type: "error",
@@ -142,12 +142,12 @@ export async function POST(req: Request) {
 
         let messageText = "حدث خطأ أثناء المعالجة. يرجى المحاولة مرة أخرى.";
 
-        if (isGeminiQuotaError(error)) {
+        if (isOpenAIQuotaError(error)) {
           messageText =
             "تم تجاوز حد استخدام خدمة الذكاء الاصطناعي مؤقتاً. يرجى الانتظار دقيقة والمحاولة مرة أخرى.";
         } else if (
           error instanceof Error &&
-          error.message === "GEMINI_API_KEY is not configured"
+          error.message === "OPENAI_API_KEY is not configured"
         ) {
           messageText =
             "خدمة الذكاء الاصطناعي غير مفعّلة حالياً. يرجى المحاولة لاحقاً.";
