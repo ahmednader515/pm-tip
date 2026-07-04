@@ -1,20 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useHomepageSettings } from "@/components/homepage-settings-provider";
-import { Facebook, Instagram, Twitter, Youtube, Linkedin, MessageCircle } from "lucide-react";
-
-// Custom TikTok Icon Component
-const TikTokIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-  </svg>
-);
 
 export const Footer = () => {
   const pathname = usePathname();
@@ -34,6 +22,24 @@ export const Footer = () => {
           <div className="inline-block bg-brand/10 border-2 border-brand/20 rounded-lg px-6 py-3 mb-4">
             <p className="font-semibold text-lg text-brand"> واتساب : {footerPhone}</p>
           </div>
+
+          <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm mb-4">
+            <Link href="/privacy-policy" className="hover:text-brand transition-colors">
+              سياسة الخصوصية
+            </Link>
+            <span className="text-border">|</span>
+            <Link href="/refund-policy" className="hover:text-brand transition-colors">
+              سياسة الاسترداد
+            </Link>
+            <span className="text-border">|</span>
+            <Link href="/terms-of-service" className="hover:text-brand transition-colors">
+              الشروط والأحكام
+            </Link>
+            <span className="text-border">|</span>
+            <Link href="/contact" className="hover:text-brand transition-colors">
+              تواصل معنا
+            </Link>
+          </nav>
           
           <p>© {new Date().getFullYear()} Mordesu Studio. جميع الحقوق محفوظة</p>
         </div>

@@ -23,6 +23,12 @@ export default withAuth(
                       req.nextUrl.pathname.startsWith("/forgot-password") ||
                       req.nextUrl.pathname.startsWith("/reset-password") ||
                       req.nextUrl.pathname.startsWith("/device-conflict"); // ✅ Add this
+
+    const isPublicPage =
+      req.nextUrl.pathname === "/privacy-policy" ||
+      req.nextUrl.pathname === "/refund-policy" ||
+      req.nextUrl.pathname === "/terms-of-service" ||
+      req.nextUrl.pathname === "/contact";
     
     // Add check for payment status page
     const isPaymentStatusPage = req.nextUrl.pathname.includes("/payment-status");
@@ -36,7 +42,7 @@ export default withAuth(
 
     // If user is not authenticated and trying to access protected routes
     // But exclude payment status page from this check
-    if (!req.nextauth.token && !isAuthPage && !isPaymentStatusPage) {
+    if (!req.nextauth.token && !isAuthPage && !isPaymentStatusPage && !isPublicPage) {
       return NextResponse.redirect(new URL("/sign-in", req.url), { status: 302 });
     }
 
