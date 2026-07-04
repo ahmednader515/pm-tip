@@ -454,8 +454,34 @@ export default function BalancePage() {
     });
   };
 
+  const formatTransactionDescription = (transaction: BalanceTransaction) => {
+    const { description, type } = transaction;
+
+    if (description.includes("Added") && type === "DEPOSIT") {
+      return description.replace(
+        /Added (\d+(?:\.\d+)?) EGP to balance/,
+        "تم إضافة $1 جنيه إلى الرصيد"
+      );
+    }
+
+    if (description.includes("Purchased course:") && type === "PURCHASE") {
+      return description.replace(/Purchased course: (.+)/, "تم شراء الكورس: $1");
+    }
+
+    if (description.includes("Purchased product:") && type === "PURCHASE") {
+      return description.replace(/Purchased product: (.+)/, "تم شراء المنتج: $1");
+    }
+
+    const fawaterakMatch = description.match(/Fawaterak deposit ([\d.]+) EGP/i);
+    if (fawaterakMatch) {
+      return `إيداع عبر Fawaterak: ${fawaterakMatch[1]} جنيه`;
+    }
+
+    return description;
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">إدارة الرصيد</h1>
@@ -715,46 +741,50 @@ export default function BalancePage() {
               <p className="text-muted-foreground">لا توجد معاملات حتى الآن</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {transactions.map((transaction) => (
                 <div
                   key={transaction.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
+                  className="rounded-lg border p-3 sm:p-4"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${
-                      transaction.type === "DEPOSIT" 
-                        ? "bg-green-100 text-green-600" 
-                        : "bg-red-100 text-red-600"
-                    }`}>
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`shrink-0 rounded-full p-2 ${
+                        transaction.type === "DEPOSIT"
+                          ? "bg-green-100 text-green-600"
+                          : "bg-red-100 text-red-600"
+                      }`}
+                    >
                       {transaction.type === "DEPOSIT" ? (
                         <Plus className="h-4 w-4" />
                       ) : (
                         <ArrowUpRight className="h-4 w-4" />
                       )}
                     </div>
-                                         <div>
-                       <p className="font-medium">
-                         {transaction.description.includes("Added") && transaction.type === "DEPOSIT" 
-                           ? transaction.description.replace(/Added (\d+(?:\.\d+)?) EGP to balance/, "تم إضافة $1 جنيه إلى الرصيد")
-                           : transaction.description.includes("Purchased course:") && transaction.type === "PURCHASE"
-                           ? transaction.description.replace(/Purchased course: (.+)/, "تم شراء الكورس: $1")
-                           : transaction.description
-                         }
-                       </p>
-                       <p className="text-sm text-muted-foreground">
-                         {formatDate(transaction.createdAt)}
-                       </p>
-                       <p className="text-xs text-muted-foreground">
-                         {transaction.type === "DEPOSIT" ? "إيداع" : "شراء كورس"}
-                       </p>
-                     </div>
-                  </div>
-                  <div className={`font-bold ${
-                    transaction.type === "DEPOSIT" ? "text-green-600" : "text-red-600"
-                  }`}>
-                    {transaction.type === "DEPOSIT" ? "+" : "-"}
-                    {Math.abs(transaction.amount).toFixed(2)} جنيه
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                        <p className="font-medium break-words leading-snug">
+                          {formatTransactionDescription(transaction)}
+                        </p>
+                        <p
+                          className={`shrink-0 self-end font-bold tabular-nums whitespace-nowrap sm:self-auto ${
+                            transaction.type === "DEPOSIT"
+                              ? "text-green-600"
+                              : "text-red-600"
+                          }`}
+                          dir="ltr"
+                        >
+                          {transaction.type === "DEPOSIT" ? "+" : "-"}
+                          {Math.abs(transaction.amount).toFixed(2)} جنيه
+                        </p>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDate(transaction.createdAt)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {transaction.type === "DEPOSIT" ? "إيداع" : "شراء"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}
