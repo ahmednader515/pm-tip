@@ -7,6 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle, XCircle, Award } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { localizedField } from "@/lib/localized";
 
 interface QuizAnswer {
     questionId: string;
@@ -16,10 +19,12 @@ interface QuizAnswer {
     pointsEarned: number;
     question: {
         text: string;
+        textEn?: string | null;
         type: string;
         points: number;
         imageUrl?: string | null;
         explanation?: string | null;
+        explanationEn?: string | null;
     };
 }
 
@@ -48,6 +53,9 @@ export default function QuizResultPage({
 }) {
     const router = useRouter();
     const { courseId, quizId } = use(params);
+    const t = useTranslations("quiz");
+    const tCommon = useTranslations("common");
+    const locale = useLocale() as Locale;
     const [result, setResult] = useState<QuizResult | null>(null);
     const [quiz, setQuiz] = useState<Quiz | null>(null);
     const [loading, setLoading] = useState(true);
@@ -165,13 +173,13 @@ export default function QuizResultPage({
 
     const formatAnswer = (answer: string, questionType: string) => {
         if (questionType === "TRUE_FALSE") {
-            return answer === "true" ? "صح" : "خطأ";
+            return answer === "true" ? tCommon("true") : tCommon("false");
         }
         if (questionType === "MULTIPLE_CHOICE") {
             try {
                 const parsed = JSON.parse(answer);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    return parsed.join("، ");
+                    return parsed.join(locale === "ar" ? "، " : ", ");
                 }
             } catch {
                 // single value
@@ -192,8 +200,8 @@ export default function QuizResultPage({
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold mb-4">لم يتم العثور على النتيجة</h1>
-                    <Button onClick={() => router.back()}>العودة</Button>
+                    <h1 className="text-2xl font-bold mb-4">{t("resultNotFound")}</h1>
+                    <Button onClick={() => router.back()}>{t("goBack")}</Button>
                 </div>
             </div>
         );
@@ -208,7 +216,7 @@ export default function QuizResultPage({
                 <div className="max-w-4xl mx-auto space-y-6">
                     {/* Header */}
                     <div className="flex items-center gap-4">
-                        <h1 className="text-2xl font-bold">نتيجة الاختبار</h1>
+                        <h1 className="text-2xl font-bold">{t("resultTitle")}</h1>
                     </div>
 
                     {/* Summary Card */}
@@ -216,7 +224,7 @@ export default function QuizResultPage({
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Award className="h-5 w-5" />
-                                ملخص النتيجة
+                                {t("resultSummary")}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -225,30 +233,30 @@ export default function QuizResultPage({
                                     <div className="text-2xl font-bold text-primary">
                                         {result.score}/{result.totalPoints}
                                     </div>
-                                    <div className="text-sm text-muted-foreground">الدرجة</div>
+                                    <div className="text-sm text-muted-foreground">{t("score")}</div>
                                 </div>
                                 <div className="text-center">
                                     <div className={`text-2xl font-bold ${getGradeColor(result.percentage)}`}>
                                         {result.percentage.toFixed(1)}%
                                     </div>
-                                    <div className="text-sm text-muted-foreground">النسبة المئوية</div>
+                                    <div className="text-sm text-muted-foreground">{t("percentage")}</div>
                                 </div>
                                 <div className="text-center">
                                     <div className="text-2xl font-bold text-primary">
                                         {correctAnswers}
                                     </div>
-                                    <div className="text-sm text-muted-foreground">إجابات صحيحة</div>
+                                    <div className="text-sm text-muted-foreground">{t("correctAnswers")}</div>
                                 </div>
                                 <div className="text-center">
                                     <div className="text-2xl font-bold text-destructive">
                                         {incorrectAnswers}
                                     </div>
-                                    <div className="text-sm text-muted-foreground">إجابات خاطئة</div>
+                                    <div className="text-sm text-muted-foreground">{t("incorrectAnswers")}</div>
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-sm font-medium">التقدم العام</span>
+                                    <span className="text-sm font-medium">{t("overallProgress")}</span>
                                     <span className="text-sm font-medium">{result.percentage.toFixed(1)}%</span>
                                 </div>
                                 <Progress value={result.percentage} className="w-full" />
@@ -259,9 +267,9 @@ export default function QuizResultPage({
                     {/* Detailed Answers */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>تفاصيل الإجابات</CardTitle>
+                            <CardTitle>{t("answerDetails")}</CardTitle>
                             <CardDescription>
-                                مراجعة إجاباتك والتحقق من الإجابات الصحيحة
+                                {t("answerDetailsDesc")}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -269,7 +277,7 @@ export default function QuizResultPage({
                                 {result.answers.map((answer, index) => (
                                     <div key={answer.questionId} className="border rounded-lg p-4">
                                         <div className="flex items-center justify-between mb-2">
-                                            <h4 className="font-medium">السؤال {index + 1}</h4>
+                                            <h4 className="font-medium">{t("questionN", { n: index + 1 })}</h4>
                                             <div className="flex items-center gap-2">
                                                 {answer.isCorrect ? (
                                                     <CheckCircle className="h-4 w-4 text-primary" />
@@ -277,45 +285,61 @@ export default function QuizResultPage({
                                                     <XCircle className="h-4 w-4 text-destructive" />
                                                 )}
                                                 <Badge variant={answer.isCorrect ? "secondary" : "destructive"}>
-                                                    {answer.isCorrect ? "صحيح" : "خاطئ"}
+                                                    {answer.isCorrect ? t("correctBadge") : t("incorrectBadge")}
                                                 </Badge>
                                             </div>
                                         </div>
-                                        <p className="text-sm text-muted-foreground mb-2">{answer.question.text}</p>
+                                        <p className="text-sm text-muted-foreground mb-2 auto-dir">
+                                            {localizedField(
+                                                answer.question as unknown as Record<string, unknown>,
+                                                "text",
+                                                locale
+                                            )}
+                                        </p>
                                         {answer.question.imageUrl && (
                                             <div className="mb-3">
                                                 <img
                                                     src={answer.question.imageUrl}
-                                                    alt="صورة السؤال"
+                                                    alt={t("questionImageAlt")}
                                                     className="rounded-md border object-contain max-h-64"
                                                 />
                                             </div>
                                         )}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                             <div>
-                                                <span className="font-medium">إجابتك:</span>
+                                                <span className="font-medium">{t("yourAnswer")}</span>
                                                 <p className="text-muted-foreground">
                                                     {answer.studentAnswer 
                                                         ? formatAnswer(answer.studentAnswer, answer.question.type)
-                                                        : "لم تجب"
+                                                        : t("noAnswer")
                                                     }
                                                 </p>
                                             </div>
                                             <div>
-                                                <span className="font-medium">الإجابة الصحيحة:</span>
+                                                <span className="font-medium">{t("correctAnswerColon")}</span>
                                                 <p className="text-primary">
                                                     {formatAnswer(answer.correctAnswer, answer.question.type)}
                                                 </p>
                                             </div>
                                         </div>
-                                        {answer.question.explanation?.trim() && (
+                                        {localizedField(
+                                            answer.question as unknown as Record<string, unknown>,
+                                            "explanation",
+                                            locale
+                                        ).trim() && (
                                             <div className="mt-3 pt-3 border-t">
-                                                <span className="font-medium text-muted-foreground">الشرح:</span>
-                                                <p className="text-sm mt-1">{answer.question.explanation}</p>
+                                                <span className="font-medium text-muted-foreground">{t("explanationColon")}</span>
+                                                <p className="text-sm mt-1 auto-dir">
+                                                    {localizedField(
+                                                        answer.question as unknown as Record<string, unknown>,
+                                                        "explanation",
+                                                        locale
+                                                    )}
+                                                </p>
                                             </div>
                                         )}
                                         <div className="mt-2 text-sm">
-                                            <span className="font-medium">الدرجات:</span>
+                                            <span className="font-medium">{t("pointsColon")}</span>
                                             <span className="text-muted-foreground">
                                                 {" "}{answer.pointsEarned}/{answer.question.points}
                                             </span>
@@ -333,14 +357,14 @@ export default function QuizResultPage({
                                 onClick={handleTryAgain}
                                 className="bg-primary hover:bg-primary/90"
                             >
-                                إعادة الاختبار
+                                {t("retakeQuizBtn")}
                             </Button>
                         ) : (
                             <Button
                                 onClick={handleNextChapter}
                                 className="bg-primary hover:bg-primary/90"
                             >
-                                {willRedirectToDashboard ? "لوحة التحكم" : "الفصل التالي"}
+                                {willRedirectToDashboard ? t("dashboard") : t("nextChapter")}
                             </Button>
                         )}
                     </div>

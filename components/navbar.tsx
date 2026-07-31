@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { useSession, signOut } from "next-auth/react";
 import { ScrollProgress } from "@/components/scroll-progress";
 import { LogOut } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 export const Navbar = () => {
   const { data: session, status } = useSession();
+  const t = useTranslations("nav");
 
   // Check if session is valid (not expired or empty)
   const isValidSession = session?.user?.id && session.user.id !== "";
@@ -31,15 +34,16 @@ export const Navbar = () => {
             asLink
             className="w-14 h-14 md:w-16 md:h-16"
             sizes="64px"
-            alt="Logo"
+            alt={t("logoAlt")}
           />
 
           {/* Right side items */}
           <div className="flex items-center gap-4">
+            <LanguageSwitcher variant="ghost" />
             {!isValidSession || status === "unauthenticated" ? (
               <>
                 <Button className="bg-brand hover:bg-brand/90 text-white" asChild>
-                  <Link href="/sign-up">انشاء الحساب</Link>
+                  <Link href="/sign-up">{t("signUp")}</Link>
                 </Button>
                 <Button
                   size="sm"
@@ -47,13 +51,13 @@ export const Navbar = () => {
                   asChild
                   className="border-brand text-brand hover:bg-brand/10"
                 >
-                  <Link href="/sign-in">تسجيل الدخول</Link>
+                  <Link href="/sign-in">{t("signIn")}</Link>
                 </Button>
               </>
             ) : (
               <>
                 <Button variant="ghost" asChild>
-                  <Link href="/dashboard">لوحة التحكم</Link>
+                  <Link href="/dashboard">{t("dashboard")}</Link>
                 </Button>
                 <Button 
                   size="sm" 
@@ -62,7 +66,7 @@ export const Navbar = () => {
                   className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors duration-200 ease-in-out"
                 >
                   <LogOut className="h-4 w-4 rtl:ml-2 ltr:mr-2"/>
-                  تسجيل الخروج
+                  {t("logout")}
                 </Button>
               </>
             )}
@@ -72,4 +76,4 @@ export const Navbar = () => {
       <ScrollProgress />
     </div>
   );
-}; 
+};

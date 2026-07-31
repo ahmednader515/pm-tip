@@ -18,6 +18,8 @@ import { FileUpload } from "@/components/file-upload";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Home, Plus, Trash2, Save } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { toLocaleText, type LocaleText } from "@/lib/localized";
 import type {
     HomepageContent,
     HomepageFeature,
@@ -25,13 +27,60 @@ import type {
     HomepageTestimonial,
 } from "@/lib/homepage";
 
-const FEATURE_ICON_OPTIONS: { value: HomepageFeatureIcon; label: string }[] = [
-    { value: "star", label: "نجمة" },
-    { value: "users", label: "مجتمع" },
-    { value: "award", label: "شهادة" },
-    { value: "book", label: "كتاب" },
-    { value: "bookopen", label: "كتاب مفتوح" },
+const FEATURE_ICON_VALUES: HomepageFeatureIcon[] = [
+    "star",
+    "users",
+    "award",
+    "book",
+    "bookopen",
 ];
+
+const emptyLocaleText = (): LocaleText => ({ ar: "", en: "" });
+
+function LocaleTextInputs({
+    value,
+    onChange,
+    arLabel,
+    enLabel,
+    multiline,
+    rows = 2,
+}: {
+    value: LocaleText;
+    onChange: (next: LocaleText) => void;
+    arLabel: string;
+    enLabel: string;
+    multiline?: boolean;
+    rows?: number;
+}) {
+    const Field = multiline ? Textarea : Input;
+    return (
+        <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+                <Label>{arLabel}</Label>
+                <Field
+                    className="mt-1"
+                    value={value.ar}
+                    rows={multiline ? rows : undefined}
+                    onChange={(e) =>
+                        onChange({ ...value, ar: e.target.value })
+                    }
+                />
+            </div>
+            <div>
+                <Label>{enLabel}</Label>
+                <Field
+                    className="mt-1"
+                    dir="ltr"
+                    value={value.en}
+                    rows={multiline ? rows : undefined}
+                    onChange={(e) =>
+                        onChange({ ...value, en: e.target.value })
+                    }
+                />
+            </div>
+        </div>
+    );
+}
 
 export function HomepageEditor({
     apiBase,
@@ -39,6 +88,9 @@ export function HomepageEditor({
     apiBase: "/api/admin/homepage" | "/api/teacher/homepage";
 }) {
     const router = useRouter();
+    const tCommon = useTranslations("common");
+    const tEditor = useTranslations("editor");
+    const t = useTranslations("editor.homepage");
     const [content, setContent] = useState<HomepageContent | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -48,17 +100,33 @@ export function HomepageEditor({
             try {
                 const res = await fetch(apiBase);
                 if (res.ok) {
-                    setContent(await res.json());
+                    const raw = await res.json();
+                    setContent({
+                        ...raw,
+                        testimonials: (raw.testimonials ?? []).map(
+                            (item: HomepageTestimonial) => ({
+                                ...item,
+                                name: toLocaleText(item.name),
+                                grade: toLocaleText(item.grade),
+                                testimonial: toLocaleText(item.testimonial),
+                            })
+                        ),
+                        features: (raw.features ?? []).map((f: HomepageFeature) => ({
+                            ...f,
+                            title: toLocaleText(f.title),
+                            description: toLocaleText(f.description),
+                        })),
+                    });
                 } else {
-                    toast.error("فشل تحميل إعدادات الصفحة الرئيسية");
+                    toast.error(t("loadFailed"));
                 }
             } catch {
-                toast.error("فشل تحميل إعدادات الصفحة الرئيسية");
+                toast.error(t("loadFailed"));
             } finally {
                 setLoading(false);
             }
         })();
-    }, [apiBase]);
+    }, [apiBase, t]);
 
     const handleSave = async () => {
         if (!content) return;
@@ -71,14 +139,14 @@ export function HomepageEditor({
             });
             if (res.ok) {
                 setContent(await res.json());
-                toast.success("تم حفظ إعدادات الصفحة الرئيسية");
+                toast.success(t("saveSuccess"));
                 router.refresh();
             } else {
                 const err = await res.text();
-                toast.error(err || "فشل الحفظ");
+                toast.error(err || t("saveFailed"));
             }
         } catch {
-            toast.error("فشل الحفظ");
+            toast.error(t("saveFailed"));
         } finally {
             setSaving(false);
         }
@@ -98,9 +166,9 @@ export function HomepageEditor({
             testimonials: [
                 ...content.testimonials,
                 {
-                    name: "",
-                    grade: "",
-                    testimonial: "",
+                    name: emptyLocaleText(),
+                    grade: emptyLocaleText(),
+                    testimonial: emptyLocaleText(),
                     avatarUrl: "/male.png",
                 },
             ],
@@ -109,7 +177,7 @@ export function HomepageEditor({
 
     const removeTestimonial = (index: number) => {
         if (!content || content.testimonials.length <= 1) {
-            toast.error("يجب أن يكون هناك رأي واحد على الأقل");
+            toast.error(t("minOneTestimonial"));
             return;
         }
         setContent({
@@ -131,14 +199,18 @@ export function HomepageEditor({
             ...content,
             features: [
                 ...content.features,
-                { title: "", description: "", icon: "star" },
+                {
+                    title: emptyLocaleText(),
+                    description: emptyLocaleText(),
+                    icon: "star",
+                },
             ],
         });
     };
 
     const removeFeature = (index: number) => {
         if (!content || content.features.length <= 1) {
-            toast.error("يجب أن تكون هناك ميزة واحدة على الأقل");
+            toast.error(t("minOneFeature"));
             return;
         }
         setContent({
@@ -149,39 +221,39 @@ export function HomepageEditor({
 
     if (loading) {
         return (
-            <div className="p-6 text-muted-foreground">جاري التحميل...</div>
+            <div className="p-6 text-muted-foreground">{t("loading")}</div>
         );
     }
 
     if (!content) {
         return (
-            <div className="p-6 text-muted-foreground">تعذر تحميل المحتوى</div>
+            <div className="p-6 text-muted-foreground">{t("loadError")}</div>
         );
     }
 
     return (
-        <div className="p-6 space-y-6 max-w-4xl text-right" dir="rtl">
+        <div className="p-6 space-y-6 max-w-4xl">
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                     <Home className="h-8 w-8" />
-                    <h1 className="text-2xl font-bold">تعديل الصفحة الرئيسية</h1>
+                    <h1 className="text-2xl font-bold">{t("pageTitle")}</h1>
                 </div>
                 <Button onClick={handleSave} disabled={saving} className="gap-2">
                     <Save className="h-4 w-4" />
-                    {saving ? "جاري الحفظ..." : "حفظ التغييرات"}
+                    {saving ? t("saving") : t("saveChanges")}
                 </Button>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>صورة المعلّم (القسم الرئيسي)</CardTitle>
+                    <CardTitle>{t("teacherImage")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {content.teacherImageUrl && (
                         <div className="relative w-32 h-32 rounded-full border overflow-hidden mx-auto">
                             <Image
                                 src={content.teacherImageUrl}
-                                alt="صورة المعلّم"
+                                alt={t("teacherImageAlt")}
                                 fill
                                 className="object-contain p-2"
                             />
@@ -203,21 +275,21 @@ export function HomepageEditor({
                             setContent({ ...content, teacherImageUrl: "/logo.png" })
                         }
                     >
-                        استخدام الصورة الافتراضية
+                        {t("useDefaultImage")}
                     </Button>
                 </CardContent>
             </Card>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>شعار الهيدر</CardTitle>
+                    <CardTitle>{t("headerLogo")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {content.headerLogoUrl && (
                         <div className="relative w-24 h-24 mx-auto">
                             <Image
                                 src={content.headerLogoUrl}
-                                alt="الشعار"
+                                alt={t("logoAlt")}
                                 fill
                                 className="object-contain"
                             />
@@ -236,10 +308,10 @@ export function HomepageEditor({
 
             <Card>
                 <CardHeader>
-                    <CardTitle>رقم واتساب (الفوتر)</CardTitle>
+                    <CardTitle>{t("footerWhatsapp")}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Label htmlFor="footerPhone">رقم الهاتف</Label>
+                    <Label htmlFor="footerPhone">{t("phoneNumber")}</Label>
                     <Input
                         id="footerPhone"
                         value={content.footerPhone}
@@ -255,14 +327,14 @@ export function HomepageEditor({
 
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>آراء الطلاب</CardTitle>
+                    <CardTitle>{t("testimonials")}</CardTitle>
                     <Button type="button" variant="outline" size="sm" onClick={addTestimonial}>
-                        <Plus className="h-4 w-4 ml-1" />
-                        إضافة رأي
+                        <Plus className="h-4 w-4 rtl:ml-1 ltr:mr-1" />
+                        {t("addTestimonial")}
                     </Button>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {content.testimonials.map((t, index) => (
+                    {content.testimonials.map((item, index) => (
                         <div
                             key={index}
                             className="border rounded-lg p-4 space-y-3 relative"
@@ -271,49 +343,39 @@ export function HomepageEditor({
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="absolute top-2 left-2 text-destructive"
+                                className="absolute top-2 start-2 text-destructive"
                                 onClick={() => removeTestimonial(index)}
                             >
                                 <Trash2 className="h-4 w-4" />
                             </Button>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <div>
-                                    <Label>الاسم</Label>
-                                    <Input
-                                        value={t.name}
-                                        onChange={(e) =>
-                                            updateTestimonial(index, { name: e.target.value })
-                                        }
-                                    />
-                                </div>
-                                <div>
-                                    <Label>الصف / المرحلة</Label>
-                                    <Input
-                                        value={t.grade}
-                                        onChange={(e) =>
-                                            updateTestimonial(index, { grade: e.target.value })
-                                        }
-                                    />
-                                </div>
-                            </div>
+                            <LocaleTextInputs
+                                value={toLocaleText(item.name)}
+                                onChange={(name) => updateTestimonial(index, { name })}
+                                arLabel={`${tCommon("arabicLabel")} — ${t("name")}`}
+                                enLabel={`${tCommon("englishLabel")} — ${tEditor("nameEn")}`}
+                            />
+                            <LocaleTextInputs
+                                value={toLocaleText(item.grade)}
+                                onChange={(grade) => updateTestimonial(index, { grade })}
+                                arLabel={`${tCommon("arabicLabel")} — ${t("grade")}`}
+                                enLabel={`${tCommon("englishLabel")} — ${tEditor("gradeEn")}`}
+                            />
+                            <LocaleTextInputs
+                                value={toLocaleText(item.testimonial)}
+                                onChange={(testimonial) =>
+                                    updateTestimonial(index, { testimonial })
+                                }
+                                arLabel={`${tCommon("arabicLabel")} — ${t("comment")}`}
+                                enLabel={`${tCommon("englishLabel")} — ${tEditor("testimonialEn")}`}
+                                multiline
+                                rows={3}
+                            />
                             <div>
-                                <Label>التعليق</Label>
-                                <Textarea
-                                    value={t.testimonial}
-                                    rows={3}
-                                    onChange={(e) =>
-                                        updateTestimonial(index, {
-                                            testimonial: e.target.value,
-                                        })
-                                    }
-                                />
-                            </div>
-                            <div>
-                                <Label>صورة الطالب (اختياري)</Label>
-                                {t.avatarUrl && (
+                                <Label>{t("studentPhoto")}</Label>
+                                {item.avatarUrl && (
                                     <div className="relative w-16 h-16 rounded-full overflow-hidden my-2">
                                         <Image
-                                            src={t.avatarUrl}
+                                            src={item.avatarUrl}
                                             alt=""
                                             fill
                                             className="object-cover"
@@ -336,10 +398,10 @@ export function HomepageEditor({
 
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>مميزات المنصة</CardTitle>
+                    <CardTitle>{t("features")}</CardTitle>
                     <Button type="button" variant="outline" size="sm" onClick={addFeature}>
-                        <Plus className="h-4 w-4 ml-1" />
-                        إضافة ميزة
+                        <Plus className="h-4 w-4 rtl:ml-1 ltr:mr-1" />
+                        {t("addFeature")}
                     </Button>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -352,34 +414,29 @@ export function HomepageEditor({
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="absolute top-2 left-2 text-destructive"
+                                className="absolute top-2 start-2 text-destructive"
                                 onClick={() => removeFeature(index)}
                             >
                                 <Trash2 className="h-4 w-4" />
                             </Button>
+                            <LocaleTextInputs
+                                value={toLocaleText(f.title)}
+                                onChange={(title) => updateFeature(index, { title })}
+                                arLabel={`${tCommon("arabicLabel")} — ${t("title")}`}
+                                enLabel={`${tCommon("englishLabel")} — ${tEditor("featureTitleEn")}`}
+                            />
+                            <LocaleTextInputs
+                                value={toLocaleText(f.description)}
+                                onChange={(description) =>
+                                    updateFeature(index, { description })
+                                }
+                                arLabel={`${tCommon("arabicLabel")} — ${t("description")}`}
+                                enLabel={`${tCommon("englishLabel")} — ${tEditor("featureDescriptionEn")}`}
+                                multiline
+                                rows={2}
+                            />
                             <div>
-                                <Label>العنوان</Label>
-                                <Input
-                                    value={f.title}
-                                    onChange={(e) =>
-                                        updateFeature(index, { title: e.target.value })
-                                    }
-                                />
-                            </div>
-                            <div>
-                                <Label>الوصف</Label>
-                                <Textarea
-                                    value={f.description}
-                                    rows={2}
-                                    onChange={(e) =>
-                                        updateFeature(index, {
-                                            description: e.target.value,
-                                        })
-                                    }
-                                />
-                            </div>
-                            <div>
-                                <Label>الأيقونة</Label>
+                                <Label>{t("icon")}</Label>
                                 <Select
                                     value={f.icon}
                                     onValueChange={(v) =>
@@ -392,9 +449,9 @@ export function HomepageEditor({
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {FEATURE_ICON_OPTIONS.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>
-                                                {opt.label}
+                                        {FEATURE_ICON_VALUES.map((value) => (
+                                            <SelectItem key={value} value={value}>
+                                                {t(`icons.${value}`)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -408,7 +465,7 @@ export function HomepageEditor({
             <div className="flex justify-start pb-8">
                 <Button onClick={handleSave} disabled={saving} size="lg" className="gap-2">
                     <Save className="h-4 w-4" />
-                    {saving ? "جاري الحفظ..." : "حفظ التغييرات"}
+                    {saving ? t("saving") : t("saveChanges")}
                 </Button>
             </div>
         </div>

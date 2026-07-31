@@ -5,7 +5,9 @@ import { NextResponse } from "next/server";
 const listSelect = {
     id: true,
     title: true,
+    titleEn: true,
     description: true,
+    descriptionEn: true,
     imageUrl: true,
     price: true,
     position: true,

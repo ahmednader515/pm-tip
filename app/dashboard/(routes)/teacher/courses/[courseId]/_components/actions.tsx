@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Info } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "axios";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,9 @@ export const Actions = ({
     isPublished,
 }: ActionsProps) => {
     const router = useRouter();
+    const tCommon = useTranslations("common");
+    const tPages = useTranslations("dashboard.teacher.pages");
+    const t = useTranslations("dashboard.teacher.courseEditor");
     const [isLoading, setIsLoading] = useState(false);
 
     const onClick = async () => {
@@ -34,15 +38,15 @@ export const Actions = ({
 
             if (isPublished) {
                 await axios.patch(`/api/courses/${courseId}/unpublish`);
-                toast.success("تم إلغاء النشر");
+                toast.success(tPages("unpublishSuccess"));
             } else {
                 await axios.patch(`/api/courses/${courseId}/publish`);
-                toast.success("تم نشر الكورس");
+                toast.success(t("coursePublished"));
             }
 
             router.refresh();
         } catch {
-            toast.error("حدث خطأ");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsLoading(false);
         }
@@ -58,12 +62,12 @@ export const Actions = ({
             {isPublished ? (
                 <>
                     <EyeOff className="h-4 w-4 mr-2" />
-                    إلغاء النشر
+                    {tCommon("unpublish")}
                 </>
             ) : (
                 <>
                     <Eye className="h-4 w-4 mr-2" />
-                    نشر الكورس
+                    {t("publishCourseAction")}
                 </>
             )}
         </Button>
@@ -82,13 +86,13 @@ export const Actions = ({
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs">
                             <div className="text-sm">
-                                <p className="font-semibold mb-2">لا يمكن نشر الكورس حتى:</p>
+                                <p className="font-semibold mb-2">{t("cannotPublishUntil")}</p>
                                 <ul className="space-y-1 text-xs">
-                                    <li>• إضافة عنوان للكورس</li>
-                                    <li>• إضافة وصف للكورس</li>
-                                    <li>• إضافة صورة للكورس</li>
-                                    <li>• تحديد سعر للكورس (يمكن أن يكون مجاني)</li>
-                                    <li>• إضافة فصل واحد على الأقل ونشره</li>
+                                    <li>• {tPages("publishCheckTitle")}</li>
+                                    <li>• {tPages("publishCheckDesc")}</li>
+                                    <li>• {tPages("publishCheckImage")}</li>
+                                    <li>• {t("publishReqPrice")}</li>
+                                    <li>• {tPages("publishCheckChapter")}</li>
                                 </ul>
                             </div>
                         </TooltipContent>

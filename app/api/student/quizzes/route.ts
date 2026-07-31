@@ -23,7 +23,7 @@ export async function GET() {
             },
             include: {
                 course: {
-                    select: { id: true, title: true },
+                    select: { id: true, title: true, titleEn: true },
                 },
             },
             orderBy: [{ course: { title: "asc" } }, { position: "asc" }],
@@ -53,8 +53,11 @@ export async function GET() {
             quizId: quiz.id,
             courseId: quiz.courseId,
             courseTitle: quiz.course.title,
+            courseTitleEn: quiz.course.titleEn,
             title: quiz.title,
+            titleEn: quiz.titleEn,
             description: quiz.description,
+            descriptionEn: quiz.descriptionEn,
             maxAttempts: quiz.maxAttempts,
             attemptCount: attemptCountByQuiz.get(quiz.id) ?? 0,
             hasDraft: draftByQuiz.has(quiz.id),

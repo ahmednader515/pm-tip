@@ -11,9 +11,11 @@ import axios, { AxiosError } from "axios";
 import { Check, X, Eye, EyeOff, ChevronLeft } from "lucide-react";
 import Image from "next/image";
 import ReCAPTCHA from "react-google-recaptcha";
+import { useTranslations } from "next-intl";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const t = useTranslations("auth.signUp");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -48,13 +50,13 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     if (!passwordChecks.isValid) {
-      toast.error("كلمات المرور غير متطابقة");
+      toast.error(t("errors.passwordsMismatch"));
       setIsLoading(false);
       return;
     }
 
     if (!recaptchaToken) {
-      toast.error("يرجى إكمال التحقق من reCaptcha");
+      toast.error(t("errors.recaptchaRequired"));
       setIsLoading(false);
       return;
     }
@@ -66,7 +68,7 @@ export default function SignUpPage() {
       });
       
       if (response.data.success) {
-        toast.success("تم إنشاء الحساب بنجاح");
+        toast.success(t("success"));
         router.push("/sign-in");
       }
     } catch (error) {
@@ -74,18 +76,18 @@ export default function SignUpPage() {
       if (axiosError.response?.status === 400) {
         const errorMessage = axiosError.response.data as string;
         if (errorMessage.includes("Phone number already exists")) {
-          toast.error("رقم الهاتف مسجل مسبقاً");
+          toast.error(t("errors.phoneExists"));
         } else if (errorMessage.includes("Passwords do not match")) {
-          toast.error("كلمات المرور غير متطابقة");
+          toast.error(t("errors.passwordsMismatch"));
         } else if (errorMessage.includes("reCAPTCHA")) {
-          toast.error("فشل التحقق من reCaptcha. يرجى المحاولة مرة أخرى");
+          toast.error(t("errors.recaptchaFailed"));
           recaptchaRef.current?.reset();
           setRecaptchaToken(null);
         } else {
-          toast.error("حدث خطأ أثناء إنشاء الحساب");
+          toast.error(t("errors.generic"));
         }
       } else {
-        toast.error("حدث خطأ أثناء إنشاء الحساب");
+        toast.error(t("errors.generic"));
       }
     } finally {
       setIsLoading(false);
@@ -120,10 +122,10 @@ export default function SignUpPage() {
             </div>
             <div className="space-y-4">
               <h3 className="text-2xl font-bold text-brand">
-                مرحباً بك في منصة PM TIPS التعليمية
+                {t("panelTitle")}
               </h3>
               <p className="text-lg text-muted-foreground max-w-md">
-                انضم إلينا اليوم وابدأ رحلة التعلم مع أفضل المدرسين
+                {t("panelSubtitle")}
               </p>
             </div>
           </div>
@@ -135,15 +137,15 @@ export default function SignUpPage() {
         <div className="w-full max-w-md space-y-6 py-8 mt-8">
           <div className="space-y-2 text-center">
             <h2 className="text-3xl font-bold tracking-tight mt-8">
-              إنشاء حساب جديد
+              {t("title")}
             </h2>
             <p className="text-sm text-muted-foreground">
-              أدخل بياناتك لإنشاء حساب جديد
+              {t("subtitle")}
             </p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">الاسم الكامل</Label>
+              <Label htmlFor="fullName">{t("fullNameLabel")}</Label>
               <Input
                 id="fullName"
                 name="fullName"
@@ -157,7 +159,7 @@ export default function SignUpPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phoneNumber">رقم الهاتف</Label>
+              <Label htmlFor="phoneNumber">{t("phoneLabel")}</Label>
               <Input
                 id="phoneNumber"
                 name="phoneNumber"
@@ -168,11 +170,11 @@ export default function SignUpPage() {
                 className="h-10"
                 value={formData.phoneNumber}
                 onChange={handleInputChange}
-                placeholder="+20XXXXXXXXXX"
+                placeholder={t("phonePlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">كلمة المرور</Label>
+              <Label htmlFor="password">{t("passwordLabel")}</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -202,7 +204,7 @@ export default function SignUpPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">تأكيد كلمة المرور</Label>
+              <Label htmlFor="confirmPassword">{t("confirmPasswordLabel")}</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
@@ -238,7 +240,7 @@ export default function SignUpPage() {
                 ) : (
                   <X className="h-4 w-4 text-red-500" />
                 )}
-                <span className="text-sm text-muted-foreground">كلمات المرور متطابقة</span>
+                <span className="text-sm text-muted-foreground">{t("passwordsMatch")}</span>
               </div>
             </div>
 
@@ -250,7 +252,7 @@ export default function SignUpPage() {
                 onExpired={() => setRecaptchaToken(null)}
                 onError={() => {
                   setRecaptchaToken(null);
-                  toast.error("حدث خطأ في التحقق من reCaptcha");
+                  toast.error(t("errors.recaptchaWidget"));
                 }}
               />
             </div>
@@ -260,20 +262,20 @@ export default function SignUpPage() {
               className="w-full h-10 bg-brand hover:bg-brand/90 text-white"
               disabled={isLoading || !passwordChecks.isValid || !recaptchaToken}
             >
-              {isLoading ? "جاري إنشاء الحساب..." : "إنشاء حساب"}
+              {isLoading ? t("submitting") : t("submit")}
             </Button>
           </form>
           <div className="text-center text-sm">
-            <span className="text-muted-foreground">لديك حساب بالفعل؟ </span>
+            <span className="text-muted-foreground">{t("hasAccount")} </span>
             <Link 
               href="/sign-in" 
               className="text-primary hover:underline transition-colors"
             >
-              تسجيل الدخول
+              {t("signInLink")}
             </Link>
           </div>
         </div>
       </div>
     </div>
   );
-} 
+}

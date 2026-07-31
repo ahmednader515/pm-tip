@@ -4,10 +4,12 @@ import { useEffect, useRef, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useNavigation } from "@/lib/contexts/navigation-context";
+import { useTranslations } from "next-intl";
 
 const NavigationLoadingContent = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const t = useTranslations("common");
   const { isNavigating, startNavigating, stopNavigating } = useNavigation();
   const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const stopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -226,10 +228,10 @@ const NavigationLoadingContent = () => {
         {/* Loading Text */}
         <div className="text-center space-y-1">
           <p className="text-base font-bold bg-gradient-to-r from-brand to-brand/80 bg-clip-text text-transparent">
-            جاري التحميل...
+            {t("loading")}
           </p>
           <p className="text-xs text-muted-foreground">
-            يرجى الانتظار
+            {t("pleaseWait")}
           </p>
         </div>
         

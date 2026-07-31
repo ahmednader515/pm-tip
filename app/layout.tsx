@@ -8,6 +8,9 @@ import { NavigationLoading } from "@/components/navigation-loading";
 import { getCachedHomepageContent } from "@/lib/homepage-db";
 import { Suspense } from "react";
 import { theme } from "@/lib/theme";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import { getDir, type Locale } from "@/i18n/config";
 
 /** Homepage CMS data must be read at request time, not baked in at build. */
 export const dynamic = "force-dynamic";
@@ -31,10 +34,11 @@ const cairo = localFont({
 
 export async function generateMetadata(): Promise<Metadata> {
   const { headerLogoUrl } = await getCachedHomepageContent();
+  const t = await getTranslations("metadata");
 
   return {
-    title: "منصة PM TIPS",
-    description: "منصة تعليمية متكاملة",
+    title: t("title"),
+    description: t("description"),
     icons: {
       icon: [{ url: headerLogoUrl }],
       shortcut: [{ url: headerLogoUrl }],
@@ -49,9 +53,12 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const homepageSettings = await getCachedHomepageContent();
+  const locale = (await getLocale()) as Locale;
+  const messages = await getMessages();
+  const dir = getDir(locale);
 
   return (
-    <html suppressHydrationWarning lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} ${cairo.variable}`}>
+    <html suppressHydrationWarning lang={locale} dir={dir} className={`${geistSans.variable} ${geistMono.variable} ${cairo.variable}`}>
       <body suppressHydrationWarning className="font-cairo">
         <script
           dangerouslySetInnerHTML={{
@@ -64,17 +71,19 @@ export default async function RootLayout({
             `,
           }}
         />
-        <Providers homepageSettings={homepageSettings}>
-          <Suspense fallback={null}>
-            <NavigationLoading />
-          </Suspense>
-          <div className="min-h-screen flex flex-col">
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
-        </Providers>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <Providers homepageSettings={homepageSettings}>
+            <Suspense fallback={null}>
+              <NavigationLoading />
+            </Suspense>
+            <div className="min-h-screen flex flex-col">
+              <main className="flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
+          </Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

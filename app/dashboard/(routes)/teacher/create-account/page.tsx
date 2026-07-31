@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,9 @@ export default function CreateAccountPage() {
   };
 
   const validatePasswords = () => {
+    const t = useTranslations("dashboard.teacher.pages");
+    const tCommon = useTranslations("common");
+    
     return {
       match: formData.password === formData.confirmPassword,
       isValid: formData.password === formData.confirmPassword && formData.password.length > 0,
@@ -53,7 +58,7 @@ export default function CreateAccountPage() {
     setIsLoading(true);
 
     if (!passwordChecks.isValid) {
-      toast.error("كلمات المرور غير متطابقة");
+      toast.error(t("passwordsMismatch"));
       setIsLoading(false);
       return;
     }
@@ -63,7 +68,7 @@ export default function CreateAccountPage() {
       
       if (response.data.success) {
         setCreatedUser(response.data.user);
-        toast.success("تم إنشاء حساب الطالب بنجاح");
+        toast.success(t("createAccountSuccessToast"));
         // Reset form
         setFormData({
           fullName: "",
@@ -77,14 +82,14 @@ export default function CreateAccountPage() {
       if (axiosError.response?.status === 400) {
         const errorMessage = axiosError.response.data as string;
         if (errorMessage.includes("Phone number already exists")) {
-          toast.error("رقم الهاتف مسجل مسبقاً");
+          toast.error(t("phoneExists"));
         } else if (errorMessage.includes("Passwords do not match")) {
-          toast.error("كلمات المرور غير متطابقة");
+          toast.error(t("passwordsMismatch"));
         } else {
-          toast.error("حدث خطأ أثناء إنشاء الحساب");
+          toast.error(t("createAccountError"));
         }
       } else {
-        toast.error("حدث خطأ أثناء إنشاء الحساب");
+        toast.error(t("createAccountError"));
       }
     } finally {
       setIsLoading(false);
@@ -107,13 +112,9 @@ export default function CreateAccountPage() {
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/dashboard/teacher/courses">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              العودة
-            </Link>
+              <ArrowLeft className="h-4 w-4 mr-2" />{tCommon("back")}</Link>
           </Button>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            إنشاء حساب طالب جديد
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t("createAccountTitle")}</h1>
         </div>
       </div>
 
@@ -122,28 +123,24 @@ export default function CreateAccountPage() {
           <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-300">
-                <CheckCircle className="h-5 w-5" />
-                تم إنشاء الحساب بنجاح
-              </CardTitle>
+                <CheckCircle className="h-5 w-5" />{t("accountCreatedSuccess")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium text-green-700 dark:text-green-300">الاسم الكامل</Label>
+                  <Label className="text-sm font-medium text-green-700 dark:text-green-300">{t("fullNameLong")}</Label>
                   <p className="text-green-800 dark:text-green-200 font-semibold">{createdUser.fullName}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-green-700 dark:text-green-300">رقم الهاتف</Label>
+                  <Label className="text-sm font-medium text-green-700 dark:text-green-300">{tCommon("phoneNumber")}</Label>
                   <p className="text-green-800 dark:text-green-200 font-semibold">{createdUser.phoneNumber}</p>
                 </div>
               </div>
               <div className="flex gap-4">
-                <Button onClick={resetForm} className="bg-green-600 hover:bg-green-700 text-white">
-                  إنشاء حساب آخر
-                </Button>
+                <Button onClick={resetForm} className="bg-green-600 hover:bg-green-700 text-white">{t("createAnotherAccount")}</Button>
                 <Button variant="outline" asChild>
                   <Link href="/dashboard/teacher/courses">
-                    العودة للكورسات
+                    {t("backToCourses")}
                   </Link>
                 </Button>
               </div>
@@ -153,35 +150,33 @@ export default function CreateAccountPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5" />
-                معلومات الطالب
-              </CardTitle>
+                <UserPlus className="h-5 w-5" />{t("studentInfo")}</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="fullName">الاسم الكامل *</Label>
+                    <Label htmlFor="fullName">{t("fullNameRequired")}</Label>
                     <Input
                       id="fullName"
                       name="fullName"
                       type="text"
                       value={formData.fullName}
                       onChange={handleInputChange}
-                      placeholder="أدخل الاسم الكامل"
+                      placeholder={t("enterFullName")}
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phoneNumber">رقم الهاتف *</Label>
+                    <Label htmlFor="phoneNumber">{t("phoneRequired")}</Label>
                     <Input
                       id="phoneNumber"
                       name="phoneNumber"
                       type="tel"
                       value={formData.phoneNumber}
                       onChange={handleInputChange}
-                      placeholder="أدخل رقم الهاتف"
+                      placeholder={t("enterPhone")}
                       required
                     />
                   </div>
@@ -189,7 +184,7 @@ export default function CreateAccountPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="password">كلمة المرور *</Label>
+                    <Label htmlFor="password">{t("passwordRequired")}</Label>
                     <div className="relative">
                       <Input
                         id="password"
@@ -197,7 +192,7 @@ export default function CreateAccountPage() {
                         type={showPassword ? "text" : "password"}
                         value={formData.password}
                         onChange={handleInputChange}
-                        placeholder="أدخل كلمة المرور"
+                        placeholder={t("enterPassword")}
                         required
                       />
                       <Button
@@ -217,7 +212,7 @@ export default function CreateAccountPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">تأكيد كلمة المرور *</Label>
+                    <Label htmlFor="confirmPassword">{t("confirmPasswordRequired")}</Label>
                     <div className="relative">
                       <Input
                         id="confirmPassword"
@@ -225,7 +220,7 @@ export default function CreateAccountPage() {
                         type={showConfirmPassword ? "text" : "password"}
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
-                        placeholder="أكد كلمة المرور"
+                        placeholder={t("confirmPasswordPlaceholder")}
                         required
                       />
                       <Button
@@ -249,14 +244,10 @@ export default function CreateAccountPage() {
                   <div className={`text-sm ${passwordChecks.match ? 'text-green-600' : 'text-red-600'}`}>
                     {passwordChecks.match ? (
                       <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-                        كلمات المرور متطابقة
-                      </span>
+                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>{t("passwordsMatch")}</span>
                     ) : (
                       <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 bg-red-600 rounded-full"></span>
-                        كلمات المرور غير متطابقة
-                      </span>
+                        <span className="w-2 h-2 bg-red-600 rounded-full"></span>{t("passwordsMismatch")}</span>
                     )}
                   </div>
                 )}
@@ -267,15 +258,13 @@ export default function CreateAccountPage() {
                     disabled={isLoading || !passwordChecks.isValid}
                     className="flex-1 bg-brand hover:bg-brand/90 text-white"
                   >
-                    {isLoading ? "جاري الإنشاء..." : "إنشاء الحساب"}
+                    {isLoading ? tCommon("creating") : t("createAccountBtn")}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={resetForm}
-                  >
-                    إعادة تعيين
-                  </Button>
+                  >{tCommon("resetForm")}</Button>
                 </div>
               </form>
             </CardContent>

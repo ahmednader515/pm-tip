@@ -11,7 +11,7 @@ export async function GET() {
     // Note: middleware restricts this route to admins
     const quizzes = await db.quiz.findMany({
       include: {
-        course: { select: { id: true, title: true } },
+        course: { select: { id: true, title: true, titleEn: true } },
         questions: { select: { id: true } },
       },
       orderBy: { createdAt: "desc" },

@@ -6,6 +6,7 @@ import { Grip } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface CourseItem {
     id: string;
@@ -23,19 +24,23 @@ interface CourseContentListProps {
     onDelete: (id: string, type: "chapter" | "quiz") => void;
 }
 
-const getActionLabel = (type: "chapter" | "quiz", isPublished: boolean) => {
-    if (type === "chapter") {
-        return isPublished ? "تعديل فيديو" : "اضافة فيديو";
-    }
-    return isPublished ? "تعديل اختبار" : "اضافة اختبار";
-};
-
 export const CourseContentList = ({
     items,
     onReorder,
     onEdit,
     onDelete
 }: CourseContentListProps) => {
+    const tCommon = useTranslations("common");
+    const tCourse = useTranslations("course");
+    const t = useTranslations("dashboard.teacher.courseEditor");
+
+    const getActionLabel = (type: "chapter" | "quiz", isPublished: boolean) => {
+        if (type === "chapter") {
+            return isPublished ? t("editVideoAction") : t("addVideoAction");
+        }
+        return isPublished ? t("editQuizAction") : t("addQuizAction");
+    };
+
     const onDragEnd = (result: DropResult) => {
         if (!result.destination) return;
 
@@ -85,14 +90,14 @@ export const CourseContentList = ({
                                             <div className="flex items-center gap-x-2">
                                                 <span>{item.title}</span>
                                                 <Badge variant="outline" className="text-xs">
-                                                    {item.type === "chapter" ? "فصل" : "اختبار"}
+                                                    {item.type === "chapter" ? tCommon("chapter") : tCommon("quiz")}
                                                 </Badge>
                                             </div>
                                         </div>
                                         <div className="ml-auto pr-2 flex items-center gap-x-2">
                                                                                          {item.type === "chapter" && item.isFree && (
                                                  <Badge>
-                                                     مجاني
+                                                     {tCourse("free")}
                                                  </Badge>
                                              )}
                                             <Badge
@@ -101,7 +106,7 @@ export const CourseContentList = ({
                                                     item.isPublished && "bg-primary text-primary-foreground"
                                                 )}
                                             >
-                                                {item.isPublished ? "تم النشر" : "مسودة"}
+                                                {item.isPublished ? tCommon("published") : tCommon("draft")}
                                             </Badge>
                                             <button
                                                 onClick={() => onEdit(item.id, item.type)}

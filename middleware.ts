@@ -1,5 +1,6 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import { defaultLocale, isLocale, LOCALE_COOKIE } from "@/i18n/config";
 
 // Helper function to get dashboard URL by role
 function getDashboardUrlByRole(role: string): string {
@@ -14,6 +15,21 @@ function getDashboardUrlByRole(role: string): string {
   }
 }
 
+function withLocaleCookie(
+  req: { cookies: { get: (name: string) => { value: string } | undefined } },
+  res: NextResponse
+) {
+  const existing = req.cookies.get(LOCALE_COOKIE)?.value;
+  if (!isLocale(existing)) {
+    res.cookies.set(LOCALE_COOKIE, defaultLocale, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+    });
+  }
+  return res;
+}
+
 export default withAuth(
   function middleware(req) {
     const isTeacherRoute = req.nextUrl.pathname.startsWith("/dashboard/teacher");
@@ -25,6 +41,7 @@ export default withAuth(
                       req.nextUrl.pathname.startsWith("/device-conflict"); // ✅ Add this
 
     const isPublicPage =
+      req.nextUrl.pathname === "/" ||
       req.nextUrl.pathname === "/privacy-policy" ||
       req.nextUrl.pathname === "/refund-policy" ||
       req.nextUrl.pathname === "/terms-of-service" ||
@@ -37,13 +54,13 @@ export default withAuth(
     if (isAuthPage && req.nextauth.token) {
       const userRole = req.nextauth.token?.role || "USER";
       const dashboardUrl = getDashboardUrlByRole(userRole);
-      return NextResponse.redirect(new URL(dashboardUrl, req.url));
+      return withLocaleCookie(req, NextResponse.redirect(new URL(dashboardUrl, req.url)));
     }
 
     // If user is not authenticated and trying to access protected routes
     // But exclude payment status page from this check
     if (!req.nextauth.token && !isAuthPage && !isPaymentStatusPage && !isPublicPage) {
-      return NextResponse.redirect(new URL("/sign-in", req.url), { status: 302 });
+      return withLocaleCookie(req, NextResponse.redirect(new URL("/sign-in", req.url), { status: 302 }));
     }
 
     // Check for admin routes
@@ -52,12 +69,12 @@ export default withAuth(
 
     // If user is not a teacher or admin but trying to access teacher routes
     if (isTeacherRoute && !(isTeacher || isAdmin)) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+      return withLocaleCookie(req, NextResponse.redirect(new URL("/dashboard", req.url)));
     }
 
     // If user is not an admin but trying to access admin routes
     if (isAdminRoute && !isAdmin) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+      return withLocaleCookie(req, NextResponse.redirect(new URL("/dashboard", req.url)));
     }
 
     // If user accesses main dashboard, redirect to role-specific dashboard
@@ -67,17 +84,17 @@ export default withAuth(
       
       // Only redirect if the user's role-specific dashboard is different from the main dashboard
       if (userRole !== "USER") {
-        return NextResponse.redirect(new URL(dashboardUrl, req.url));
+        return withLocaleCookie(req, NextResponse.redirect(new URL(dashboardUrl, req.url)));
       }
     }
 
     // Handle POST requests to payment status page
     if (isPaymentStatusPage && req.method === "POST") {
       // Convert POST to GET by redirecting to the same URL
-      return NextResponse.redirect(req.url, { status: 303 });
+      return withLocaleCookie(req, NextResponse.redirect(req.url, { status: 303 }));
     }
 
-    return NextResponse.next();
+    return withLocaleCookie(req, NextResponse.next());
   },
   {
     callbacks: {

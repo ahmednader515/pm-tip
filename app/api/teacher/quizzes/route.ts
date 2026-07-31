@@ -21,7 +21,8 @@ export async function GET(req: Request) {
                 course: {
                     select: {
                         id: true,
-                        title: true
+                        title: true,
+                        titleEn: true
                     }
                 },
                 questions: {
@@ -64,7 +65,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     try {
         const { userId, user } = await auth();
-        const { title, description, courseId, questions, position, timer, maxAttempts, certificateEnabled, certificatePassPercentage } = await req.json();
+        const { title, titleEn, description, descriptionEn, courseId, questions, position, timer, maxAttempts, certificateEnabled, certificatePassPercentage } = await req.json();
 
         console.log("Received position:", position, "Type:", typeof position);
 
@@ -213,7 +214,19 @@ export async function POST(req: Request) {
         // Try creating the quiz without questions first
         const quizDataWithoutQuestions = {
             title,
+            ...(titleEn !== undefined && {
+                titleEn:
+                    titleEn == null || String(titleEn).trim() === ""
+                        ? null
+                        : String(titleEn).trim(),
+            }),
             description,
+            ...(descriptionEn !== undefined && {
+                descriptionEn:
+                    descriptionEn == null || String(descriptionEn).trim() === ""
+                        ? null
+                        : String(descriptionEn).trim(),
+            }),
             position: Number(quizPosition),
             courseId,
             timer: timer || null,
@@ -250,10 +263,24 @@ export async function POST(req: Request) {
                     }
                     return {
                         text: question.text,
+                        textEn:
+                            question.textEn == null || String(question.textEn).trim() === ""
+                                ? null
+                                : String(question.textEn).trim(),
                         type: question.type,
                         options: question.type === "MULTIPLE_CHOICE" ? stringifyQuizOptions(question.options) : null,
+                        optionsEn:
+                            question.type === "MULTIPLE_CHOICE" && Array.isArray(question.optionsEn)
+                                ? stringifyQuizOptions(question.optionsEn)
+                                : question.type === "MULTIPLE_CHOICE" && typeof question.optionsEn === "string"
+                                ? question.optionsEn.trim() || null
+                                : null,
                         correctAnswer: correctAnswerValue,
                         explanation: question.explanation?.trim() || null,
+                        explanationEn:
+                            question.explanationEn == null || String(question.explanationEn).trim() === ""
+                                ? null
+                                : String(question.explanationEn).trim(),
                         points: question.points,
                         imageUrl: question.imageUrl || null,
                         quizId: quiz.id,
@@ -289,7 +316,8 @@ export async function POST(req: Request) {
             ...quizWithQuestions,
             questions: quizWithQuestions.questions.map(question => ({
                 ...question,
-                options: parseQuizOptions(question.options)
+                options: parseQuizOptions(question.options),
+                optionsEn: parseQuizOptions(question.optionsEn),
             }))
         };
 

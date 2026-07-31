@@ -33,10 +33,13 @@ export async function GET(
                     select: {
                         id: true,
                         text: true,
+                        textEn: true,
                         type: true,
                         options: true,
+                        optionsEn: true,
                         points: true,
-                        imageUrl: true
+                        imageUrl: true,
+                        explanationEn: true,
                     },
                     orderBy: {
                         position: 'asc'

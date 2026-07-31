@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
+import { useTranslations } from "next-intl";
 import { ChaptersList } from "./chapters-list";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,8 @@ export const ChaptersForm = ({
     initialData,
     courseId
 }: ChaptersFormProps) => {
+    const tCommon = useTranslations("common");
+    const t = useTranslations("dashboard.teacher.courseEditor");
     const [isCreating, setIsCreating] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const [title, setTitle] = useState("");
@@ -30,12 +33,12 @@ export const ChaptersForm = ({
         try {
             setIsUpdating(true);
             await axios.post(`/api/courses/${courseId}/chapters`, { title });
-            toast.success("تم انشاء الفصل");
+            toast.success(t("chapterCreated"));
             setTitle("");
             setIsCreating(false);
             router.refresh();
         } catch {
-            toast.error("حدث خطأ");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsUpdating(false);
         }
@@ -45,10 +48,10 @@ export const ChaptersForm = ({
         try {
             setIsUpdating(true);
             await axios.delete(`/api/courses/${courseId}/chapters/${id}`);
-            toast.success("تم حذف الفصل");
+            toast.success(t("chapterDeleted"));
             router.refresh();
         } catch {
-            toast.error("حدث خطأ");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsUpdating(false);
         }
@@ -60,10 +63,10 @@ export const ChaptersForm = ({
             await axios.put(`/api/courses/${courseId}/chapters/reorder`, {
                 list: updateData
             });
-            toast.success("تم ترتيب الفصول");
+            toast.success(t("chaptersReordered"));
             router.refresh();
         } catch {
-            toast.error("حدث خطأ");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsUpdating(false);
         }
@@ -81,14 +84,14 @@ export const ChaptersForm = ({
                 </div>
             )}
             <div className="font-medium flex items-center justify-between">
-                الفصول
+                {t("chaptersTitle")}
                 <Button onClick={() => setIsCreating((current) => !current)} variant="ghost">
                     {isCreating ? (
-                        <>إلغاء</>
+                        <>{tCommon("cancel")}</>
                     ) : (
                         <>
                             <PlusCircle className="h-4 w-4 mr-2" />
-                            إضافة فصل
+                            {t("addChapter")}
                         </>
                     )}
                 </Button>
@@ -97,7 +100,7 @@ export const ChaptersForm = ({
                 <div className="mt-4 space-y-4">
                     <Input
                         disabled={isUpdating}
-                        placeholder="e.g. 'المقدمة في الكورس'"
+                        placeholder={t("chapterTitlePlaceholder")}
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                     />
@@ -106,7 +109,7 @@ export const ChaptersForm = ({
                         disabled={!title || isUpdating}
                         type="button"
                     >
-                        انشاء
+                        {tCommon("create")}
                     </Button>
                 </div>
             )}
@@ -115,7 +118,7 @@ export const ChaptersForm = ({
                     "text-sm mt-2",
                     !initialData.chapters.length && "text-muted-foreground italic"
                 )}>
-                    {!initialData.chapters.length && "لا يوجد فصول"}
+                    {!initialData.chapters.length && t("noChapters")}
                     <ChaptersList
                         onEdit={onEdit}
                         onDelete={onDelete}
@@ -126,7 +129,7 @@ export const ChaptersForm = ({
             )}
             {!isCreating && initialData.chapters.length > 0 && (
                 <p className="text-xs text-muted-foreground mt-4">
-                    قم بالسحب والإفلات لترتيب الفصول
+                    {t("dragToReorderChapters")}
                 </p>
             )}
         </div>

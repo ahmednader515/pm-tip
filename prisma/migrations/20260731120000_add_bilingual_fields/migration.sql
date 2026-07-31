@@ -1,0 +1,21 @@
+-- Add nullable English twin columns (Arabic fields unchanged)
+
+ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS "titleEn" TEXT;
+ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS "descriptionEn" TEXT;
+
+ALTER TABLE "Chapter" ADD COLUMN IF NOT EXISTS "titleEn" TEXT;
+ALTER TABLE "Chapter" ADD COLUMN IF NOT EXISTS "descriptionEn" TEXT;
+
+ALTER TABLE "Quiz" ADD COLUMN IF NOT EXISTS "titleEn" TEXT;
+ALTER TABLE "Quiz" ADD COLUMN IF NOT EXISTS "descriptionEn" TEXT;
+
+ALTER TABLE "Question" ADD COLUMN IF NOT EXISTS "textEn" TEXT;
+ALTER TABLE "Question" ADD COLUMN IF NOT EXISTS "optionsEn" TEXT;
+ALTER TABLE "Question" ADD COLUMN IF NOT EXISTS "explanationEn" TEXT;
+
+ALTER TABLE "StoreProduct" ADD COLUMN IF NOT EXISTS "titleEn" TEXT;
+ALTER TABLE "StoreProduct" ADD COLUMN IF NOT EXISTS "descriptionEn" TEXT;
+
+ALTER TABLE "Subscription" ADD COLUMN IF NOT EXISTS "titleEn" TEXT;
+
+ALTER TABLE "QuestionBankSettings" ADD COLUMN IF NOT EXISTS "displayNameEn" TEXT;

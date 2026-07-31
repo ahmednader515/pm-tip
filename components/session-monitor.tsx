@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 export function SessionMonitor() {
   const { data: session, status } = useSession();
-  const router = useRouter();
+  const t = useTranslations("common");
   const isLoggingOutRef = useRef(false);
   const toastShownRef = useRef(false);
 
@@ -16,14 +16,12 @@ export function SessionMonitor() {
     isLoggingOutRef.current = true;
 
     if (!toastShownRef.current) {
-      toast.error("انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.");
+      toast.error(t("sessionExpired"));
       toastShownRef.current = true;
     }
 
-    // Sign out from NextAuth
     await signOut({ redirect: false });
 
-    // Clear NextAuth cookies explicitly
     if (typeof document !== "undefined") {
       document.cookie.split(";").forEach((c) => {
         const cookieName = c.trim().split("=")[0];
@@ -33,14 +31,11 @@ export function SessionMonitor() {
       });
     }
 
-    // Wait a bit for cookies to clear
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Full page reload
     window.location.href = "/";
-  }, []);
+  }, [t]);
 
-  // Monitor session status
   useEffect(() => {
     if (status === "authenticated" && session) {
       const isExpired = session.expires &&
@@ -55,7 +50,6 @@ export function SessionMonitor() {
     }
   }, [status, session, handleLogout]);
 
-  // Periodic session validation (every 5 seconds)
   useEffect(() => {
     if (status !== "authenticated" || !session) return;
 
@@ -82,7 +76,6 @@ export function SessionMonitor() {
       }
     };
 
-    // Wait 2 seconds before first check
     const initialDelay = setTimeout(() => {
       checkSession();
       const interval = setInterval(checkSession, 5000);
@@ -94,4 +87,3 @@ export function SessionMonitor() {
 
   return null;
 }
-

@@ -22,6 +22,7 @@ export async function GET() {
             .map((s) => ({
                 courseId: s.courseId,
                 courseTitle: s.courseTitle,
+                courseTitleEn: s.courseTitleEn,
                 totalChapters: s.totalChapters,
                 completedChapters: s.completedChapters,
                 totalQuizzes: s.totalQuizzes,

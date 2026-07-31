@@ -24,6 +24,8 @@ import { Editor } from "@/components/editor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { IconBadge } from "@/components/icon-badge";
 import { AttachmentsForm } from "./attachments-form";
+import { useTranslations } from "next-intl";
+import { Label } from "@/components/ui/label";
 
 interface ChapterAttachment {
     id: string;
@@ -36,7 +38,9 @@ interface ChapterAttachment {
 interface ChapterFormProps {
     initialData: {
         title: string;
+        titleEn?: string | null;
         description: string | null;
+        descriptionEn?: string | null;
         isFree: boolean;
         isPublished: boolean;
         attachments: ChapterAttachment[];
@@ -49,12 +53,14 @@ const titleSchema = z.object({
     title: z.string().min(1, {
         message: "Title is required",
     }),
+    titleEn: z.string().optional(),
 });
 
 const descriptionSchema = z.object({
     description: z.string().min(1, {
         message: "Description is required",
     }),
+    descriptionEn: z.string().optional(),
 });
 
 const accessSchema = z.object({
@@ -66,6 +72,10 @@ export const ChapterForm = ({
     courseId,
     chapterId
 }: ChapterFormProps) => {
+    const tCommon = useTranslations("common");
+    const tEditor = useTranslations("editor");
+    const t = useTranslations("dashboard.teacher.chapterEditor");
+    const tCourseEditor = useTranslations("dashboard.teacher.courseEditor");
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [isEditingDescription, setIsEditingDescription] = useState(false);
     const [isEditingAccess, setIsEditingAccess] = useState(false);
@@ -82,6 +92,7 @@ export const ChapterForm = ({
         resolver: zodResolver(titleSchema),
         defaultValues: {
             title: initialData?.title || "",
+            titleEn: initialData?.titleEn || "",
         },
     });
 
@@ -89,6 +100,7 @@ export const ChapterForm = ({
         resolver: zodResolver(descriptionSchema),
         defaultValues: {
             description: initialData?.description || "",
+            descriptionEn: initialData?.descriptionEn || "",
         },
     });
 
@@ -110,19 +122,22 @@ export const ChapterForm = ({
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(values),
+                body: JSON.stringify({
+                    title: values.title,
+                    titleEn: values.titleEn?.trim() || null,
+                }),
             });
 
             if (!response.ok) {
                 throw new Error('Failed to update chapter title');
             }
 
-            toast.success("Chapter title updated");
+            toast.success(t("chapterUpdated"));
             setIsEditingTitle(false);
             router.refresh();
         } catch (error) {
             console.error("[CHAPTER_TITLE]", error);
-            toast.error("Something went wrong");
+            toast.error(tCommon("errors.generic"));
         }
     }
 
@@ -133,19 +148,22 @@ export const ChapterForm = ({
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(values),
+                body: JSON.stringify({
+                    description: values.description,
+                    descriptionEn: values.descriptionEn?.trim() || null,
+                }),
             });
 
             if (!response.ok) {
                 throw new Error('Failed to update chapter description');
             }
 
-            toast.success("Chapter description updated");
+            toast.success(t("chapterUpdated"));
             setIsEditingDescription(false);
             router.refresh();
         } catch (error) {
             console.error("[CHAPTER_DESCRIPTION]", error);
-            toast.error("Something went wrong");
+            toast.error(tCommon("errors.generic"));
         }
     }
 
@@ -159,12 +177,12 @@ export const ChapterForm = ({
                 body: JSON.stringify(values),
             });
 
-            toast.success("Chapter access updated");
+            toast.success(t("chapterUpdated"));
             setIsEditingAccess(false);
             router.refresh();
         } catch (error) {
             console.error("[CHAPTER_ACCESS]", error);
-            toast.error("Something went wrong");
+            toast.error(tCommon("errors.generic"));
         }
     }
 
@@ -174,10 +192,10 @@ export const ChapterForm = ({
             
             await axios.patch(`/api/courses/${courseId}/chapters/${chapterId}/publish`);
             
-            toast.success(initialData.isPublished ? "تم إلغاء النشر" : "تم النشر");
+            toast.success(initialData.isPublished ? t("chapterUnpublished") : t("chapterPublished"));
             router.refresh();
         } catch {
-            toast.error("Something went wrong");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsLoading(false);
         }
@@ -192,31 +210,33 @@ export const ChapterForm = ({
             <div className="flex items-center gap-x-2">
                 <IconBadge icon={LayoutDashboard} />
                 <h2 className="text-xl">
-                    إعدادات الفصل
+                    {t("chapterSettingsTitle")}
                 </h2>
             </div>
             <div className="space-y-4">
                 <div className="border bg-card rounded-md p-4">
                     <div className="font-medium flex items-center justify-between">
-                        عنوان الفصل
+                        {t("chapterTitleLabel")}
                         <Button onClick={() => setIsEditingTitle(!isEditingTitle)} variant="ghost">
                             {isEditingTitle ? (
-                                <>إلغاء</>
+                                <>{tCommon("cancel")}</>
                             ) : (
                                 <>
                                     <Pencil className="h-4 w-4 mr-2" />
-                                    تعديل العنوان
+                                    {tCourseEditor("editTitleAction")}
                                 </>
                             )}
                         </Button>
                     </div>
                     {!isEditingTitle && (
-                        <p className={cn(
-                            "text-sm mt-2",
-                            !initialData.title && "text-muted-foreground italic"
-                        )}>
-                            {initialData.title || "لا يوجد عنوان"}
-                        </p>
+                        <div className="text-sm mt-2 space-y-1">
+                            <p className={cn(!initialData.title && "text-muted-foreground italic")}>
+                                {initialData.title || t("noTitleSet")}
+                            </p>
+                            {initialData.titleEn && (
+                                <p dir="ltr" className="text-xs text-muted-foreground">{initialData.titleEn}</p>
+                            )}
+                        </div>
                     )}
                     {isEditingTitle && (
                         <Form {...titleForm}>
@@ -229,10 +249,29 @@ export const ChapterForm = ({
                                     name="title"
                                     render={({ field }) => (
                                         <FormItem>
+                                            <Label>{tCommon("arabicLabel")}</Label>
                                             <FormControl>
                                                 <Input
                                                     disabled={isSubmittingTitle}
                                                     placeholder="e.g. 'Introduction to the course'"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={titleForm.control}
+                                    name="titleEn"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <Label>{tCommon("englishLabel")} — {tEditor("titleEn")}</Label>
+                                            <FormControl>
+                                                <Input
+                                                    disabled={isSubmittingTitle}
+                                                    dir="ltr"
+                                                    placeholder="e.g. Introduction to the course"
                                                     {...field}
                                                 />
                                             </FormControl>
@@ -245,7 +284,7 @@ export const ChapterForm = ({
                                         disabled={!isValidTitle || isSubmittingTitle}
                                         type="submit"
                                     >
-                                        حفظ
+                                        {tCommon("save")}
                                     </Button>
                                 </div>
                             </form>
@@ -254,28 +293,35 @@ export const ChapterForm = ({
                 </div>
                 <div className="border bg-card rounded-md p-4">
                     <div className="font-medium flex items-center justify-between">
-                        وصف الفصل
+                        {t("chapterDescriptionLabel")}
                         <Button onClick={() => setIsEditingDescription(!isEditingDescription)} variant="ghost">
                             {isEditingDescription ? (
-                                <>إلغاء</>
+                                <>{tCommon("cancel")}</>
                             ) : (
                                 <>
                                     <Pencil className="h-4 w-4 mr-2" />
-                                    تعديل الوصف
+                                    {tCourseEditor("editDescriptionAction")}
                                 </>
                             )}
                         </Button>
                     </div>
                     {!isEditingDescription && (
                         <div className={cn(
-                            "text-sm mt-2",
+                            "text-sm mt-2 space-y-2",
                             !initialData.description && "text-muted-foreground italic"
                         )}>
-                            {!initialData.description && "لا يوجد وصف"}
+                            {!initialData.description && tCourseEditor("noDescriptionShort")}
                             {initialData.description && (
                                 <div 
                                     className="prose prose-sm max-w-none space-y-4"
                                     dangerouslySetInnerHTML={{ __html: initialData.description }}
+                                />
+                            )}
+                            {initialData.descriptionEn && (
+                                <div
+                                    dir="ltr"
+                                    className="prose prose-sm max-w-none text-muted-foreground"
+                                    dangerouslySetInnerHTML={{ __html: initialData.descriptionEn }}
                                 />
                             )}
                         </div>
@@ -291,6 +337,7 @@ export const ChapterForm = ({
                                     name="description"
                                     render={({ field }) => (
                                         <FormItem>
+                                            <Label>{tCommon("arabicLabel")}</Label>
                                             <FormControl>
                                                 <Editor
                                                     onChange={field.onChange}
@@ -302,12 +349,29 @@ export const ChapterForm = ({
                                         </FormItem>
                                     )}
                                 />
+                                <FormField
+                                    control={descriptionForm.control}
+                                    name="descriptionEn"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <Label>{tCommon("englishLabel")} — {tEditor("descriptionEn")}</Label>
+                                            <FormControl>
+                                                <Editor
+                                                    onChange={field.onChange}
+                                                    value={field.value || ""}
+                                                    placeholder="e.g. This chapter will cover the basics of..."
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                                 <div className="flex items-center gap-x-2">
                                     <Button
                                         disabled={!isValidDescription || isSubmittingDescription}
                                         type="submit"
                                     >
-                                        حفظ
+                                        {tCommon("save")}
                                     </Button>
                                 </div>
                             </form>
@@ -320,20 +384,20 @@ export const ChapterForm = ({
                 <div className="flex items-center gap-x-2">
                     <IconBadge icon={Eye} />
                     <h2 className="text-xl">
-                        إعدادات الوصول
+                        {t("accessSettingsTitle")}
                     </h2>
                 </div>
                 <div className="space-y-4 mt-4">
                     <div className="border bg-card rounded-md p-4">
                         <div className="font-medium flex items-center justify-between">
-                            إعدادات الوصول
+                            {t("accessSettingsTitle")}
                             <Button onClick={() => setIsEditingAccess(!isEditingAccess)} variant="ghost">
                                 {isEditingAccess ? (
-                                    <>الغاء</>
+                                    <>{tCommon("cancel")}</>
                                 ) : (
                                     <>
                                         <Pencil className="h-4 w-4 mr-2" />
-                                        تعديل الوصول
+                                        {t("editAccessAction")}
                                     </>
                                 )}
                             </Button>
@@ -343,7 +407,7 @@ export const ChapterForm = ({
                                 "text-sm mt-2",
                                 !initialData.isFree && "text-muted-foreground italic"
                             )}>
-                                {initialData.isFree ? "هذا الفصل مجاني للمعاينة" : "هذا الفصل غير مجاني"}
+                                {initialData.isFree ? t("freePreviewYes") : t("freePreviewNo")}
                             </p>
                         )}
                         {isEditingAccess && (
@@ -363,9 +427,9 @@ export const ChapterForm = ({
                                                         onCheckedChange={field.onChange}
                                                     />
                                                 </FormControl>
-                                                <div className="space-y-1 leading-none">
+                                <div className="space-y-1 leading-none">
                                                     <FormDescription>
-                                                        قم بالتحقق من هذا المربع إذا أردت جعل هذا الفصل مجانيًا للمعاينة
+                                                        {t("freeCheckboxDesc")}
                                                     </FormDescription>
                                                 </div>
                                             </FormItem>
@@ -376,7 +440,7 @@ export const ChapterForm = ({
                                             disabled={!isValidAccess || isSubmittingAccess}
                                             type="submit"
                                         >
-                                            حفظ
+                                            {tCommon("save")}
                                         </Button>
                                     </div>
                                 </form>
@@ -390,7 +454,7 @@ export const ChapterForm = ({
                 <div className="flex items-center gap-x-2">
                     <IconBadge icon={Files} />
                     <h2 className="text-xl">
-                        مستندات الفصل
+                        {t("documentsTitle")}
                     </h2>
                 </div>
                 <AttachmentsForm
@@ -404,12 +468,12 @@ export const ChapterForm = ({
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h3 className="text-lg font-semibold">
-                            {initialData.isPublished ? "الفصل منشور" : "الفصل غير منشور"}
+                            {initialData.isPublished ? t("chapterPublished") : t("chapterUnpublished")}
                         </h3>
                         <p className="text-sm text-muted-foreground">
                             {initialData.isPublished
-                                ? "يمكن للطلاب مشاهدة هذا الفصل الآن. يمكنك إلغاء النشر لإخفائه مؤقتًا."
-                                : "لن يكون هذا الفصل مرئيًا للطلاب حتى يتم نشره."}
+                                ? t("chapterPublishedDesc")
+                                : t("chapterUnpublishedDesc")}
                         </p>
                     </div>
                     <Button
@@ -421,12 +485,12 @@ export const ChapterForm = ({
                         {initialData.isPublished ? (
                             <>
                                 <EyeOff className="h-4 w-4 mr-2" />
-                                إلغاء النشر
+                                {tCommon("unpublish")}
                             </>
                         ) : (
                             <>
                                 <Eye className="h-4 w-4 mr-2" />
-                                نشر الفصل
+                                {t("publishChapterAction")}
                             </>
                         )}
                     </Button>

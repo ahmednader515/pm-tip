@@ -8,11 +8,15 @@ import { Wallet, BookOpen, Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
-type SubCourse = { id: string; title: string; imageUrl: string | null };
+type SubCourse = { id: string; title: string; titleEn?: string | null; imageUrl: string | null };
 type SubscriptionItem = {
   id: string;
   title: string;
+  titleEn?: string | null;
   type: string;
   price: number;
   teacherName: string;
@@ -21,23 +25,29 @@ type SubscriptionItem = {
   expiredAt: string | null;
 };
 
-function getRemainingText(expiresAt: string): string {
+function getRemainingText(
+  expiresAt: string,
+  t: ReturnType<typeof useTranslations<"dashboard.student.subscriptions">>
+): string {
   const now = new Date();
   const end = new Date(expiresAt);
   const diffMs = end.getTime() - now.getTime();
   const diffDays = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
   if (diffDays >= 30) {
     const months = Math.floor(diffDays / 30);
-    return months === 1 ? "شهر واحد متبقي" : `متبقي ${months} أشهر`;
+    return months === 1 ? t("remainingMonthsOne") : t("remainingMonths", { count: months });
   }
   if (diffDays === 0) {
-    return "ينتهي اليوم";
+    return t("endsToday");
   }
-  return diffDays === 1 ? "يوم واحد متبقي" : `متبقي ${diffDays} يوم`;
+  return diffDays === 1 ? t("remainingDaysOne") : t("remainingDays", { count: diffDays });
 }
 
 export default function SubscriptionsPage() {
   const router = useRouter();
+  const t = useTranslations("dashboard.student.subscriptions");
+  const tCommon = useTranslations("common");
+  const locale = useLocale() as Locale;
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,10 +65,10 @@ export default function SubscriptionsPage() {
         const data = await res.json();
         setSubscriptions(data);
       } else {
-        toast.error("فشل تحميل الاشتراكات");
+        toast.error(t("loadFailed"));
       }
     } catch (e) {
-      toast.error("فشل تحميل الاشتراكات");
+      toast.error(t("loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -78,7 +88,7 @@ export default function SubscriptionsPage() {
 
   const handlePurchase = async (sub: SubscriptionItem) => {
     if (balance !== null && balance < sub.price) {
-      toast.error("رصيدك غير كافٍ. يرجى شحن الرصيد من صفحة الرصيد.");
+      toast.error(t("insufficientBalance"));
       return;
     }
     setPurchasingId(sub.id);
@@ -88,15 +98,15 @@ export default function SubscriptionsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
-        toast.success(`تم الاشتراك بنجاح. تم إضافة ${data.coursesAdded} كورس إلى حسابك.`);
+        toast.success(t("purchaseSuccess", { count: data.coursesAdded }));
         setBalance(data.newBalance ?? balance);
         router.push("/dashboard/search");
       } else {
         const msg = res.ok ? data.message : await res.text();
-        toast.error(msg || "فشل الاشتراك");
+        toast.error(msg || t("purchaseFailed"));
       }
     } catch (e) {
-      toast.error("فشل الاشتراك");
+      toast.error(t("purchaseFailed"));
     } finally {
       setPurchasingId(null);
     }
@@ -113,15 +123,15 @@ export default function SubscriptionsPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold">الاشتراكات</h1>
+        <h1 className="text-2xl font-bold">{t("title")}</h1>
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">رصيدك:</span>
+          <span className="text-sm text-muted-foreground">{tCommon("yourBalance")}</span>
           <span className="font-semibold">
-            {balance !== null ? `${balance.toFixed(2)} ج.م` : "—"}
+            {balance !== null ? tCommon("egpAmount", { amount: balance.toFixed(2) }) : "—"}
           </span>
           <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/balance">شحن الرصيد</Link>
+            <Link href="/dashboard/balance">{tCommon("topUpBalance")}</Link>
           </Button>
         </div>
       </div>
@@ -130,7 +140,7 @@ export default function SubscriptionsPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-muted-foreground text-center py-8">
-              لا توجد اشتراكات متاحة حالياً.
+              {t("empty")}
             </p>
           </CardContent>
         </Card>
@@ -142,7 +152,7 @@ export default function SubscriptionsPage() {
             const canAfford = balance !== null && balance >= sub.price;
             const isPurchasing = purchasingId === sub.id;
             const formatExpiredDate = (iso: string) =>
-              new Date(iso).toLocaleDateString("ar-EG", {
+              new Date(iso).toLocaleDateString(locale === "ar" ? "ar-EG" : "en-US", {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
@@ -157,27 +167,31 @@ export default function SubscriptionsPage() {
                 }
               >
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">{sub.title}</CardTitle>
+                  <CardTitle className="text-lg">
+                    {localizedField(sub as unknown as Record<string, unknown>, "title", locale)}
+                  </CardTitle>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="secondary">
-                      {sub.type === "MONTHLY" ? "شهري" : "سنوي"}
+                      {sub.type === "MONTHLY" ? t("monthly") : t("yearly")}
                     </Badge>
-                    <span className="font-semibold text-brand">{sub.price} ج.م</span>
+                    <span className="font-semibold text-brand">
+                      {tCommon("egpAmount", { amount: sub.price })}
+                    </span>
                     {hasActiveSubscription && sub.myPurchase && (
                       <Badge variant="default" className="bg-green-600">
-                        {getRemainingText(sub.myPurchase.expiresAt)}
+                        {getRemainingText(sub.myPurchase.expiresAt, t)}
                       </Badge>
                     )}
                     {isExpired && sub.expiredAt && (
                       <Badge variant="secondary" className="gap-1">
                         <Lock className="h-3 w-3" />
-                        منتهي
+                        {t("expired")}
                       </Badge>
                     )}
                   </div>
                   {isExpired && sub.expiredAt && (
                     <p className="text-xs text-muted-foreground">
-                      انتهى في {formatExpiredDate(sub.expiredAt)}
+                      {t("expiredOn", { date: formatExpiredDate(sub.expiredAt) })}
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground">{sub.teacherName}</p>
@@ -186,14 +200,16 @@ export default function SubscriptionsPage() {
                   <div>
                     <p className="text-sm font-medium flex items-center gap-1 mb-2">
                       <BookOpen className="h-4 w-4" />
-                      الكورسات المتضمنة ({sub.courses.length})
+                      {t("includedCourses", { count: sub.courses.length })}
                     </p>
                     <ul className="text-sm text-muted-foreground list-disc list-inside space-y-0.5">
                       {sub.courses.slice(0, 5).map((c) => (
-                        <li key={c.id}>{c.title}</li>
+                        <li key={c.id}>
+                          {localizedField(c as unknown as Record<string, unknown>, "title", locale)}
+                        </li>
                       ))}
                       {sub.courses.length > 5 && (
-                        <li>و {sub.courses.length - 5} آخر</li>
+                        <li>{t("andMore", { count: sub.courses.length - 5 })}</li>
                       )}
                     </ul>
                   </div>
@@ -202,7 +218,7 @@ export default function SubscriptionsPage() {
                       className="w-full bg-green-600 hover:bg-green-700 text-white"
                       disabled
                     >
-                      اشتراكك فعال
+                      {t("active")}
                     </Button>
                   ) : (
                     <Button
@@ -217,11 +233,11 @@ export default function SubscriptionsPage() {
                       {isPurchasing ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : isExpired ? (
-                        <>تجديد الاشتراك ({sub.price} ج.م)</>
+                        t("renewBtn", { price: sub.price })
                       ) : canAfford ? (
-                        <>اشترك الآن ({sub.price} ج.م)</>
+                        t("subscribeNow", { price: sub.price })
                       ) : (
-                        "رصيد غير كافٍ"
+                        t("insufficient")
                       )}
                     </Button>
                   )}

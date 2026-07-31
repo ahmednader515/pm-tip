@@ -25,6 +25,8 @@ import {
   MANUAL_VODAFONE_CASH_NUMBER,
   MANUAL_INSTAPAY_NUMBER,
 } from "@/lib/balance-payment-display";
+import { useLocale, useTranslations } from "next-intl";
+import type { Locale } from "@/i18n/config";
 
 interface BalanceTransaction {
   id: string;
@@ -61,30 +63,22 @@ interface CheckoutResponse {
   meezaReference?: string;
 }
 
-const methodDesign: Record<
+const methodDesignBase: Record<
   PaymentMethodKind,
   {
-    title: string;
-    subtitle: string;
     icon: typeof CreditCard;
     badgeClass: string;
   }
 > = {
   cards: {
-    title: "بطاقات ائتمانية",
-    subtitle: "Visa / Mastercard / Meeza",
     icon: CreditCard,
     badgeClass: "bg-blue-100 text-blue-700",
   },
   fawry: {
-    title: "Fawry",
-    subtitle: "الدفع بكود فوري",
     icon: CircleDollarSign,
     badgeClass: "bg-yellow-100 text-yellow-700",
   },
   wallets: {
-    title: "المحافظ الإلكترونية",
-    subtitle: "Vodafone / Orange / Etisalat",
     icon: Landmark,
     badgeClass: "bg-emerald-100 text-emerald-700",
   },
@@ -98,6 +92,9 @@ const methodImageFallback: Record<PaymentMethodKind, string> = {
 
 export default function BalancePage() {
   const { data: session } = useSession();
+  const t = useTranslations("dashboard.student.balance");
+  const tCommon = useTranslations("common");
+  const locale = useLocale() as Locale;
   const [balance, setBalance] = useState(0);
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -133,18 +130,18 @@ export default function BalancePage() {
         if (!opts?.silent) {
           toast.error(
             response.status === 401
-              ? "انتهت الجلسة. سجّل الدخول مرة أخرى."
-              : "تعذر تحميل الرصيد. حدّث الصفحة."
+              ? t("sessionExpired")
+              : t("balanceLoadFailed")
           );
         }
       }
     } catch (error) {
       console.error("Error fetching balance:", error);
       if (!opts?.silent) {
-        toast.error("تعذر الاتصال بالخادم لتحميل الرصيد.");
+        toast.error(t("balanceConnectFailed"));
       }
     }
-  }, []);
+  }, [t]);
 
   const fetchTransactions = useCallback(async (opts?: { silent?: boolean }) => {
     try {
@@ -217,9 +214,7 @@ export default function BalancePage() {
     }
 
     if (paymentResult === "success") {
-      toast.success(
-        "تم إكمال الدفع من البوابة. جاري تحديث الرصيد… إذا لم يزد الرصيد خلال دقيقة، تأكد أن Webhook في Fawaterak يشير إلى: /api/fawaterak/webhook_json على نفس النطاق."
-      );
+      toast.success(t("paymentSuccessToast"));
 
       let invoiceIdStr = invoiceIdFromGateway?.trim() ?? "";
       if (!/^\d+$/.test(invoiceIdStr)) {
@@ -251,9 +246,9 @@ export default function BalancePage() {
           .catch((e) => console.error("[fawaterak sync-return]", e));
       }
     } else if (paymentResult === "pending") {
-      toast.info("عملية الدفع قيد المراجعة. سيتم إضافة الرصيد تلقائياً بعد التأكيد.");
+      toast.info(t("paymentPendingToast"));
     } else if (paymentResult === "failed") {
-      toast.error("عملية الدفع لم تكتمل. يمكنك المحاولة مرة أخرى.");
+      toast.error(t("paymentFailedToast"));
     }
 
     if (paymentResult === "failed") {
@@ -306,7 +301,7 @@ export default function BalancePage() {
       }
     } catch (error) {
       console.error("Error fetching fawaterak methods:", error);
-      toast.error("تعذر تحميل وسائل الدفع، حاول مرة أخرى");
+      toast.error(t("methodsLoadError"));
     } finally {
       setIsLoadingMethods(false);
     }
@@ -314,7 +309,7 @@ export default function BalancePage() {
 
   const handleAddBalance = async () => {
     if (!amount || parseFloat(amount) <= 0) {
-      toast.error("يرجى إدخال مبلغ صحيح");
+      toast.error(t("invalidAmount"));
       return;
     }
 
@@ -332,15 +327,15 @@ export default function BalancePage() {
         const data = await response.json();
         setBalance(data.newBalance);
         setAmount("");
-        toast.success("تم إضافة الرصيد بنجاح");
+        toast.success(t("balanceAdded"));
         fetchTransactions({ silent: true }); // Refresh transactions
       } else {
         const error = await response.text();
-        toast.error(error || "حدث خطأ أثناء إضافة الرصيد");
+        toast.error(error || t("addBalanceError"));
       }
     } catch (error) {
       console.error("Error adding balance:", error);
-      toast.error("حدث خطأ أثناء إضافة الرصيد");
+      toast.error(t("addBalanceError"));
     } finally {
       setIsLoading(false);
     }
@@ -349,12 +344,12 @@ export default function BalancePage() {
   const handleGatewayCheckout = async () => {
     const parsedAmount = parseFloat(gatewayAmount);
     if (!gatewayAmount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      toast.error("يرجى إدخال مبلغ صحيح");
+      toast.error(t("invalidAmount"));
       return;
     }
 
     if (!availableMethods[selectedMethod]) {
-      toast.error("وسيلة الدفع المحددة غير متاحة حالياً");
+      toast.error(t("methodUnavailable"));
       return;
     }
 
@@ -375,7 +370,7 @@ export default function BalancePage() {
       const responseText = await response.text();
 
       if (!response.ok) {
-        toast.error(responseText || `فشل إنشاء عملية الدفع (${response.status})`);
+        toast.error(responseText || t("checkoutFailed", { status: response.status }));
         return;
       }
 
@@ -384,7 +379,7 @@ export default function BalancePage() {
         data = JSON.parse(responseText) as CheckoutResponse;
       } catch {
         console.error("[BALANCE_PAGE] checkout JSON parse error", responseText.slice(0, 200));
-        toast.error("استجابة غير صالحة من خادم الدفع.");
+        toast.error(t("invalidPaymentResponse"));
         return;
       }
 
@@ -413,22 +408,20 @@ export default function BalancePage() {
       }
 
       if (data.fawryCode) {
-        const expiry = data.fawryExpireDate ? ` — صلاحية الكود: ${data.fawryExpireDate}` : "";
-        toast.info(`كود فوري: ${data.fawryCode}${expiry}`, { duration: 20000 });
+        const expiry = data.fawryExpireDate ? t("fawryExpiry", { date: data.fawryExpireDate }) : "";
+        toast.info(t("fawryCode", { code: data.fawryCode, expiry }), { duration: 20000 });
         return;
       }
 
       if (data.meezaReference) {
-        toast.info(`مرجع المحفظة: ${data.meezaReference}`, { duration: 20000 });
+        toast.info(t("meezaRef", { ref: data.meezaReference }), { duration: 20000 });
         return;
       }
 
-      toast.error(
-        "لم يُرجع رابط دفع من البوابة. جرّب وسيلة أخرى أو راجع إعدادات Fawaterak في السجلات."
-      );
+      toast.error(t("noRedirectUrl"));
     } catch (error) {
       console.error("Error initializing payment:", error);
-      toast.error("حدث خطأ أثناء بدء عملية الدفع");
+      toast.error(t("paymentStartError"));
     } finally {
       setIsInitializingPayment(false);
     }
@@ -438,14 +431,14 @@ export default function BalancePage() {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(`تم نسخ ${label}`);
+      toast.success(t("copiedLabel", { label }));
     } catch {
-      toast.error("تعذر النسخ من المتصفح");
+      toast.error(t("copyFailed"));
     }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("ar-EG", {
+    return new Date(dateString).toLocaleDateString(locale === "ar" ? "ar-EG" : "en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
@@ -458,23 +451,23 @@ export default function BalancePage() {
     const { description, type } = transaction;
 
     if (description.includes("Added") && type === "DEPOSIT") {
-      return description.replace(
-        /Added (\d+(?:\.\d+)?) EGP to balance/,
-        "تم إضافة $1 جنيه إلى الرصيد"
-      );
+      const m = description.match(/Added (\d+(?:\.\d+)?) EGP to balance/);
+      if (m) return t("txnAdded", { amount: m[1] });
     }
 
     if (description.includes("Purchased course:") && type === "PURCHASE") {
-      return description.replace(/Purchased course: (.+)/, "تم شراء الكورس: $1");
+      const m = description.match(/Purchased course: (.+)/);
+      if (m) return t("txnPurchasedCourse", { title: m[1] });
     }
 
     if (description.includes("Purchased product:") && type === "PURCHASE") {
-      return description.replace(/Purchased product: (.+)/, "تم شراء المنتج: $1");
+      const m = description.match(/Purchased product: (.+)/);
+      if (m) return t("txnPurchasedProduct", { title: m[1] });
     }
 
     const fawaterakMatch = description.match(/Fawaterak deposit ([\d.]+) EGP/i);
     if (fawaterakMatch) {
-      return `إيداع عبر Fawaterak: ${fawaterakMatch[1]} جنيه`;
+      return t("txnFawaterak", { amount: fawaterakMatch[1] });
     }
 
     return description;
@@ -484,11 +477,11 @@ export default function BalancePage() {
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">إدارة الرصيد</h1>
+<h1 className="text-2xl font-bold">{t("title")}</h1>
           <p className="text-muted-foreground">
-            {isStudent 
-              ? "عرض رصيد حسابك وسجل المعاملات" 
-              : "أضف رصيد إلى حسابك لشراء الكورسات"
+{isStudent 
+              ? t("subtitleStudent") 
+              : t("subtitleTeacher")
             }
           </p>
         </div>
@@ -499,15 +492,15 @@ export default function BalancePage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5" />
-            رصيد الحساب
+{t("accountBalance")}
           </CardTitle>
           <CardDescription>
-            الرصيد المتاح في حسابك
+{t("availableBalance")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-3xl font-bold text-brand">
-            {balance.toFixed(2)} جنيه
+{tCommon("egpAmount", { amount: balance.toFixed(2) })}
           </div>
         </CardContent>
       </Card>
@@ -518,17 +511,17 @@ export default function BalancePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5" />
-              إضافة رصيد
+{t("addBalance")}
             </CardTitle>
             <CardDescription>
-              أضف مبلغ إلى رصيد حسابك
+              {t("addBalanceDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-4">
               <Input
                 type="number"
-                placeholder="أدخل المبلغ"
+placeholder={t("amountPlaceholder")}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 min="0"
@@ -540,7 +533,7 @@ export default function BalancePage() {
                 disabled={isLoading}
                 className="bg-brand hover:bg-brand/90"
               >
-                {isLoading ? "جاري الإضافة..." : "إضافة الرصيد"}
+{isLoading ? t("adding") : t("addBalanceBtn")}
               </Button>
             </div>
           </CardContent>
@@ -553,17 +546,17 @@ export default function BalancePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wallet className="h-5 w-5 text-brand" />
-              شحن الرصيد
+{t("topUpTitle")}
             </CardTitle>
             <CardDescription>
-              حوّل المبلغ عبر إحدى الطرق أدناه، ثم أرسل إيصال التحويل للإدارة ليتم إضافة الرصيد لحسابك.
+              {t("topUpDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2 rounded-lg border bg-background p-4">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Smartphone className="h-4 w-4 text-brand" />
-                فودافون كاش
+{t("vodafoneCash")}
               </div>
               {MANUAL_VODAFONE_CASH_NUMBER ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -576,18 +569,16 @@ export default function BalancePage() {
                     size="sm"
                     className="gap-1"
                     onClick={() =>
-                      copyToClipboard(MANUAL_VODAFONE_CASH_NUMBER, "رقم فودافون كاش")
+copyToClipboard(MANUAL_VODAFONE_CASH_NUMBER, t("copyVodafone"))
                     }
                   >
                     <Copy className="h-3.5 w-3.5" />
-                    نسخ
+{tCommon("copy")}
                   </Button>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  لم يُضبط رقم فودافون كاش بعد. أضف{" "}
-                  <span className="font-mono text-xs">NEXT_PUBLIC_MANUAL_VODAFONE_CASH_NUMBER</span>{" "}
-                  في إعدادات البيئة.
+{t("vodafoneNotSet")}
                 </p>
               )}
             </div>
@@ -595,7 +586,7 @@ export default function BalancePage() {
             <div className="space-y-2 rounded-lg border bg-background p-4">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Building2 className="h-4 w-4 text-brand" />
-                إنستاباي (Instapay)
+{t("instapay")}
               </div>
               {MANUAL_INSTAPAY_NUMBER ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -608,18 +599,16 @@ export default function BalancePage() {
                     size="sm"
                     className="gap-1 shrink-0"
                     onClick={() =>
-                      copyToClipboard(MANUAL_INSTAPAY_NUMBER, "بيانات إنستاباي")
+copyToClipboard(MANUAL_INSTAPAY_NUMBER, t("copyInstapay"))
                     }
                   >
                     <Copy className="h-3.5 w-3.5" />
-                    نسخ
+                    {tCommon("copy")}
                   </Button>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  لم يُضبط رقم أو حساب إنستاباي بعد. أضف{" "}
-                  <span className="font-mono text-xs">NEXT_PUBLIC_MANUAL_INSTAPAY_NUMBER</span>{" "}
-                  في إعدادات البيئة.
+                <p className="text-muted-foreground">
+{t("instapayNotSet")}
                 </p>
               )}
             </div>
@@ -633,19 +622,19 @@ export default function BalancePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-brand" />
-              إضافة رصيد عن طريق بوابة الدفع
+{t("gatewayTitle")}
             </CardTitle>
             <CardDescription>
-              اختر وسيلة الدفع المناسبة وأكمل العملية من بوابة الدفع
+              {t("gatewayDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="gatewayAmount">المبلغ (جنيه)</Label>
+<Label htmlFor="gatewayAmount">{t("amountLabel")}</Label>
               <Input
                 id="gatewayAmount"
                 type="number"
-                placeholder="أدخل المبلغ"
+                placeholder={t("amountPlaceholder")}
                 value={gatewayAmount}
                 onChange={(e) => setGatewayAmount(e.target.value)}
                 min="1"
@@ -654,14 +643,14 @@ export default function BalancePage() {
             </div>
 
             {isLoadingMethods ? (
-              <div className="text-sm text-muted-foreground">جاري تحميل وسائل الدفع...</div>
+<div className="text-sm text-muted-foreground">{t("loadingMethods")}</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {(["cards", "fawry", "wallets"] as PaymentMethodKind[]).map((methodKey) => {
                   const method = availableMethods[methodKey];
                   const selected = selectedMethod === methodKey;
                   const isDisabled = !method;
-                  const Icon = methodDesign[methodKey].icon;
+const Icon = methodDesignBase[methodKey].icon;
 
                   return (
                     <button
@@ -680,7 +669,7 @@ export default function BalancePage() {
                       )}
 
                       <div className="flex items-center justify-between gap-3">
-                        <div className={`rounded-lg p-2 min-h-10 min-w-10 flex items-center justify-center ${methodDesign[methodKey].badgeClass}`}>
+<div className={`rounded-lg p-2 min-h-10 min-w-10 flex items-center justify-center ${methodDesignBase[methodKey].badgeClass}`}>
                           {!brokenLogos[methodKey] ? (
                             <img
                               src={methodImageFallback[methodKey]}
@@ -695,9 +684,9 @@ export default function BalancePage() {
                           )}
                         </div>
                         <div>
-                          <p className="font-semibold text-sm">{methodDesign[methodKey].title}</p>
+<p className="font-semibold text-sm">{methodKey === "cards" ? t("methodCards") : methodKey === "fawry" ? t("methodFawry") : t("methodWallets")}</p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {methodDesign[methodKey].subtitle}
+                            {methodKey === "cards" ? t("methodCardsSub") : methodKey === "fawry" ? t("methodFawrySub") : t("methodWalletsSub")}
                           </p>
                         </div>
                       </div>
@@ -713,7 +702,7 @@ export default function BalancePage() {
               className="w-full bg-brand hover:bg-brand/90 text-white"
               size="lg"
             >
-              {isInitializingPayment ? "جاري بدء الدفع..." : "الدفع عبر Fawaterak"}
+{isInitializingPayment ? t("startingPayment") : t("payViaFawaterak")}
             </Button>
           </CardContent>
         </Card>
@@ -724,21 +713,21 @@ export default function BalancePage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            سجل المعاملات
+{t("transactionHistory")}
           </CardTitle>
           <CardDescription>
-            تاريخ جميع المعاملات المالية
+            {t("transactionHistoryDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoadingTransactions ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mx-auto"></div>
-              <p className="mt-2 text-muted-foreground">جاري التحميل...</p>
+<p className="mt-2 text-muted-foreground">{tCommon("loading")}</p>
             </div>
           ) : transactions.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">لا توجد معاملات حتى الآن</p>
+<p className="text-muted-foreground">{t("noTransactions")}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -775,14 +764,14 @@ export default function BalancePage() {
                           dir="ltr"
                         >
                           {transaction.type === "DEPOSIT" ? "+" : "-"}
-                          {Math.abs(transaction.amount).toFixed(2)} جنيه
+{tCommon("egpAmount", { amount: Math.abs(transaction.amount).toFixed(2) })}
                         </p>
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {formatDate(transaction.createdAt)}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {transaction.type === "DEPOSIT" ? "إيداع" : "شراء"}
+{transaction.type === "DEPOSIT" ? t("deposit") : t("purchase")}
                       </p>
                     </div>
                   </div>

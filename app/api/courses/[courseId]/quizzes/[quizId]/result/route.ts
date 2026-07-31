@@ -40,11 +40,13 @@ export async function GET(
                         question: {
                             select: {
                                 text: true,
+                                textEn: true,
                                 type: true,
                                 points: true,
                                 position: true,
                                 imageUrl: true,
-                                explanation: true
+                                explanation: true,
+                                explanationEn: true,
                             }
                         }
                     },

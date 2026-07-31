@@ -20,7 +20,9 @@ export async function GET() {
                     select: {
                         id: true,
                         title: true,
+                        titleEn: true,
                         description: true,
+                        descriptionEn: true,
                         imageUrl: true,
                         price: true,
                         downloadUrl: true,

@@ -6,15 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 export const BalanceTest = () => {
   const { data: session, status } = useSession();
+  const t = useTranslations("dashboard.student.balance");
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleAddBalance = async () => {
     if (!amount || parseFloat(amount) <= 0) {
-      toast.error("يرجى إدخال مبلغ صحيح");
+      toast.error(t("invalidAmount"));
       return;
     }
 
@@ -29,16 +31,15 @@ export const BalanceTest = () => {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        toast.success("تم إضافة الرصيد بنجاح");
+        toast.success(t("balanceAdded"));
         setAmount("");
       } else {
         const error = await response.text();
-        toast.error(error || "حدث خطأ أثناء إضافة الرصيد");
+        toast.error(error || t("addBalanceError"));
       }
     } catch (error) {
       console.error("Error adding balance:", error);
-      toast.error("حدث خطأ أثناء إضافة الرصيد");
+      toast.error(t("addBalanceError"));
     } finally {
       setIsLoading(false);
     }
@@ -87,7 +88,7 @@ export const BalanceTest = () => {
                   disabled={isLoading}
                   className="bg-[#27c08d] hover:bg-[#27c08d]/90"
                 >
-                  {isLoading ? "Adding..." : "Add Balance"}
+                  {isLoading ? t("adding") : t("addBalanceBtn")}
                 </Button>
               </div>
             </CardContent>
@@ -109,4 +110,4 @@ export const BalanceTest = () => {
       </div>
     </div>
   );
-}; 
+};

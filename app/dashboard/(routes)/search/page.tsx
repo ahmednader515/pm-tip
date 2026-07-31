@@ -9,6 +9,9 @@ import { BookOpen, Clock, Users, Lock } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Course, Purchase } from "@prisma/client";
+import { getTranslations, getLocale } from "next-intl/server";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 type CourseWithDetails = Course & {
     chapters: { id: string }[];
@@ -22,6 +25,11 @@ export default async function SearchPage({
 }: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+    const t = await getTranslations("dashboard.student.search");
+    const tPages = await getTranslations("dashboard.student.pages");
+    const tCourse = await getTranslations("course");
+    const tCommon = await getTranslations("common");
+    const locale = (await getLocale()) as Locale;
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
@@ -92,11 +100,11 @@ export default async function SearchPage({
         <div className="p-6 space-y-6">
             {/* Header Section */}
             <div className="mb-8">
-                <h1 className="text-3xl font-bold mb-2">البحث عن الكورسات</h1>
+                <h1 className="text-3xl font-bold mb-2">{tPages("searchTitle")}</h1>
                 <p className="text-muted-foreground text-lg">
                     {title 
-                        ? `نتائج البحث عن "${title}"`
-                        : "اكتشف مجموعة متنوعة من الكورسات التعليمية المميزة"
+                        ? t("resultsFor", { title })
+                        : t("discoverSubtitle")
                     }
                 </p>
             </div>
@@ -112,11 +120,11 @@ export default async function SearchPage({
             <div>
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-semibold">
-                        {title ? `نتائج البحث (${coursesWithProgress.length})` : `جميع الكورسات (${coursesWithProgress.length})`}
+{title ? t("resultsCount", { count: coursesWithProgress.length }) : t("allCoursesCount", { count: coursesWithProgress.length })}
                     </h2>
                     {coursesWithProgress.length > 0 && (
                         <div className="text-sm text-muted-foreground">
-                            {coursesWithProgress.length} كورس متاح
+{t("coursesAvailable", { count: coursesWithProgress.length })}
                         </div>
                     )}
                 </div>
@@ -131,7 +139,7 @@ export default async function SearchPage({
                             <div className="relative w-full aspect-[16/9]">
                                 <Image
                                     src={course.imageUrl || "/placeholder.png"}
-                                    alt={course.title}
+                                    alt={localizedField(course as Record<string, unknown>, "title", locale)}
                                     fill
                                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                                 />
@@ -147,10 +155,10 @@ export default async function SearchPage({
                                             : "bg-white/90 backdrop-blur-sm text-gray-800"
                                     }`}>
                                         {course.purchases.length > 0 && course.hasAccess
-                                            ? "مشترك"
+                                            ? t("enrolled")
                                             : course.purchases.length > 0 && !course.hasAccess
-                                            ? "اشتراك منتهي"
-                                            : "متاح"}
+                                            ? t("subscriptionExpired")
+                                            : t("available")}
                                     </div>
                                 </div>
 
@@ -161,7 +169,7 @@ export default async function SearchPage({
                                             ? "bg-green-500 text-white" 
                                             : "bg-white/90 backdrop-blur-sm text-gray-800"
                                     }`}>
-                                        {course.price === 0 ? "مجاني" : `${course.price} جنيه`}
+{course.price === 0 ? tCourse("free") : tCommon("egpAmount", { amount: course.price })}
                                     </div>
                                 </div>
                             </div>
@@ -169,7 +177,7 @@ export default async function SearchPage({
                             <div className="p-6">
                                 <div className="mb-4">
                                     <h3 className="text-xl font-bold mb-3 line-clamp-2 min-h-[3rem] text-gray-900">
-                                        {course.title}
+                                        {localizedField(course as Record<string, unknown>, "title", locale)}
                                     </h3>
                                     
                                     {/* Course Stats */}
@@ -177,16 +185,16 @@ export default async function SearchPage({
                                         <div className="flex items-center gap-1">
                                             <BookOpen className="h-4 w-4" />
                                             <span className="whitespace-nowrap">
-                                                {course.chapters.length} {course.chapters.length === 1 ? "فصل" : "فصول"}
+{course.chapters.length} {course.chapters.length === 1 ? tCommon("chapter") : tCommon("chapters")}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <Users className="h-4 w-4" />
-                                            <span className="whitespace-nowrap">{course.purchases.length} طالب</span>
+<span className="whitespace-nowrap">{t("studentsCount", { count: course.purchases.length })}</span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <Clock className="h-4 w-4" />
-                                            <span className="whitespace-nowrap">{new Date(course.updatedAt).toLocaleDateString('ar', {
+<span className="whitespace-nowrap">{new Date(course.updatedAt).toLocaleDateString(locale === "ar" ? "ar" : "en-US", {
                                                 year: 'numeric',
                                                 month: 'short'
                                             })}</span>
@@ -198,7 +206,7 @@ export default async function SearchPage({
                                     <>
                                         <p className="text-sm text-amber-600 mb-3 flex items-center gap-1">
                                             <Lock className="h-4 w-4" />
-                                            انتهى اشتراكك. جدد للوصول مرة أخرى.
+{t("subscriptionEnded")}
                                         </p>
                                         <Button
                                             className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 text-base"
@@ -206,7 +214,7 @@ export default async function SearchPage({
                                             asChild
                                         >
                                             <Link href="/dashboard/subscriptions">
-                                                تجديد الاشتراك
+{t("renewSubscription")}
                                             </Link>
                                         </Button>
                                     </>
@@ -218,7 +226,7 @@ export default async function SearchPage({
                                             asChild
                                         >
                                             <Link href={course.chapters.length > 0 ? `/courses/${course.id}/chapters/${course.chapters[0].id}` : `/courses/${course.id}`}>
-                                                {course.purchases.length > 0 && course.hasAccess ? "متابعة التعلم" : "عرض الكورس"}
+{course.purchases.length > 0 && course.hasAccess ? tCourse("continueLearning") : t("viewCourse")}
                                             </Link>
                                         </Button>
                                         {course.purchases.length === 0 && (
@@ -228,7 +236,7 @@ export default async function SearchPage({
                                                 asChild
                                             >
                                                 <Link href={`/courses/${course.id}/purchase`}>
-                                                    شراء الكورس
+{t("purchaseCourse")}
                                                 </Link>
                                             </Button>
                                         )}
@@ -245,18 +253,18 @@ export default async function SearchPage({
                         <div className="bg-muted/50 rounded-2xl p-8 max-w-md mx-auto">
                             <BookOpen className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                             <h3 className="text-lg font-semibold mb-2">
-                                {title ? "لم يتم العثور على كورسات" : "لا توجد كورسات متاحة"}
+{title ? t("noCoursesFound") : t("noCoursesAvailable")}
                             </h3>
                             <p className="text-muted-foreground mb-6">
                                 {title 
-                                    ? "جرب البحث بكلمات مختلفة أو تصفح جميع الكورسات"
-                                    : "سيتم إضافة كورسات جديدة قريباً"
+                                    ? t("tryDifferentSearch")
+                                    : t("coursesComingSoon")
                                 }
                             </p>
                             {title && (
                                 <Button asChild className="bg-brand hover:bg-brand/90 text-white font-semibold">
                                     <Link href="/dashboard/search">
-                                        عرض جميع الكورسات
+{t("viewAllCourses")}
                                     </Link>
                                 </Button>
                             )}

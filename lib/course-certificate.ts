@@ -6,6 +6,7 @@ export async function getCourseCertificateStatus(userId: string, courseId: strin
     select: {
       id: true,
       title: true,
+      titleEn: true,
       certificateEnabled: true,
       isPublished: true,
     },
@@ -63,6 +64,7 @@ export async function getCourseCertificateStatus(userId: string, courseId: strin
   return {
     courseId: course.id,
     courseTitle: course.title,
+    courseTitleEn: course.titleEn,
     certificateEnabled: course.certificateEnabled,
     totalChapters,
     completedChapters,

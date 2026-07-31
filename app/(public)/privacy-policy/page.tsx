@@ -1,96 +1,88 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { LegalPage } from "@/components/legal-page";
 
-export const metadata: Metadata = {
-  title: "سياسة الخصوصية | منصة PM TIPS",
-  description: "سياسة الخصوصية لمنصة PM TIPS التعليمية",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("legal.privacy");
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+  };
+}
 
-export default function PrivacyPolicyPage() {
+export default async function PrivacyPolicyPage() {
+  const t = await getTranslations("legal.privacy");
+  const tLegal = await getTranslations("legal");
+
   return (
-    <LegalPage title="سياسة الخصوصية" lastUpdated="24 يونيو 2026">
+    <LegalPage title={t("title")} lastUpdated={tLegal("lastUpdatedDate")}>
       <section>
-        <h2>1. مقدمة</h2>
-        <p>
-          نرحب بكم في منصة PM TIPS التابعة لـ Mordesu Studio. نحن نلتزم بحماية
-          خصوصيتكم وبياناتكم الشخصية. توضح هذه السياسة كيفية جمع واستخدام
-          وحماية معلوماتكم عند استخدام المنصة.
-        </p>
+        <h2>{t("s1.heading")}</h2>
+        <p>{t("s1.p1")}</p>
       </section>
 
       <section>
-        <h2>2. البيانات التي نجمعها</h2>
-        <p>قد نجمع الأنواع التالية من المعلومات:</p>
+        <h2>{t("s2.heading")}</h2>
+        <p>{t("s2.intro")}</p>
         <ul>
-          <li>معلومات الحساب: الاسم، رقم الهاتف، وكلمة المرور المشفرة.</li>
-          <li>معلومات الاستخدام: الكورسات المشتراة، التقدم الدراسي، ونتائج الاختبارات.</li>
-          <li>معلومات الدفع: تتم معالجة المدفوعات عبر مزودي دفع خارجيين ولا نخزن بيانات بطاقات الائتمان على خوادمنا.</li>
-          <li>معلومات تقنية: نوع الجهاز، المتصفح، وعنوان IP لأغراض الأمان وتحسين الخدمة.</li>
+          <li>{t("s2.item1")}</li>
+          <li>{t("s2.item2")}</li>
+          <li>{t("s2.item3")}</li>
+          <li>{t("s2.item4")}</li>
         </ul>
       </section>
 
       <section>
-        <h2>3. كيفية استخدام البيانات</h2>
-        <p>نستخدم بياناتكم للأغراض التالية:</p>
+        <h2>{t("s3.heading")}</h2>
+        <p>{t("s3.intro")}</p>
         <ul>
-          <li>إنشاء وإدارة حسابكم على المنصة.</li>
-          <li>توفير الوصول إلى الكورسات والمحتوى التعليمي المشترى.</li>
-          <li>معالجة المدفوعات وإصدار الفواتير.</li>
-          <li>تحسين تجربة المستخدم وتطوير خدماتنا.</li>
-          <li>التواصل معكم بخصوص حسابكم أو تحديثات المنصة.</li>
+          <li>{t("s3.item1")}</li>
+          <li>{t("s3.item2")}</li>
+          <li>{t("s3.item3")}</li>
+          <li>{t("s3.item4")}</li>
+          <li>{t("s3.item5")}</li>
         </ul>
       </section>
 
       <section>
-        <h2>4. مشاركة البيانات</h2>
-        <p>
-          لا نبيع أو نؤجر بياناتكم الشخصية لأطراف ثالثة. قد نشارك البيانات فقط
-          مع مزودي الخدمات الضروريين لتشغيل المنصة (مثل معالجة الدفع والاستضافة)
-          أو عند الالتزام بمتطلبات قانونية.
-        </p>
+        <h2>{t("s4.heading")}</h2>
+        <p>{t("s4.p1")}</p>
       </section>
 
       <section>
-        <h2>5. حماية البيانات</h2>
-        <p>
-          نتخذ إجراءات أمنية معقولة لحماية بياناتكم من الوصول غير المصرح به أو
-          التعديل أو الإفصاح. ومع ذلك، لا يمكن ضمان الأمان المطلق لأي نقل عبر
-          الإنترنت.
-        </p>
+        <h2>{t("s5.heading")}</h2>
+        <p>{t("s5.p1")}</p>
       </section>
 
       <section>
-        <h2>6. حقوقكم</h2>
-        <p>يحق لكم:</p>
+        <h2>{t("s6.heading")}</h2>
+        <p>{t("s6.intro")}</p>
         <ul>
-          <li>الاطلاع على بياناتكم الشخصية وتحديثها.</li>
-          <li>طلب حذف حسابكم وفقاً للشروط المعمول بها.</li>
-          <li>التواصل معنا لأي استفسار متعلق بالخصوصية.</li>
+          <li>{t("s6.item1")}</li>
+          <li>{t("s6.item2")}</li>
+          <li>{t("s6.item3")}</li>
         </ul>
       </section>
 
       <section>
-        <h2>7. ملفات تعريف الارتباط (Cookies)</h2>
-        <p>
-          نستخدم ملفات تعريف الارتباط وتقنيات مشابهة للحفاظ على جلسة تسجيل
-          الدخول وتحسين أداء المنصة. يمكنكم التحكم في إعدادات المتصفح لتعطيل
-          بعض ملفات تعريف الارتباط.
-        </p>
+        <h2>{t("s7.heading")}</h2>
+        <p>{t("s7.p1")}</p>
       </section>
 
       <section>
-        <h2>8. التعديلات على السياسة</h2>
-        <p>
-          قد نقوم بتحديث هذه السياسة من وقت لآخر. سيتم نشر أي تغييرات على هذه
-          الصفحة مع تحديث تاريخ آخر مراجعة.
-        </p>
+        <h2>{t("s8.heading")}</h2>
+        <p>{t("s8.p1")}</p>
       </section>
 
       <section>
-        <h2>9. التواصل معنا</h2>
+        <h2>{t("s9.heading")}</h2>
         <p>
-          لأي استفسارات حول سياسة الخصوصية، يرجى زيارة صفحة{" "}
-          <a href="/contact">تواصل معنا</a>.
+          {t.rich("s9.p1", {
+            contactLink: (chunks) => (
+              <Link href="/contact">{chunks}</Link>
+            ),
+          })}
         </p>
       </section>
     </LegalPage>

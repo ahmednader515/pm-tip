@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
+import { useTranslations } from "next-intl"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -31,6 +32,7 @@ export const ComboBox = ({
     onChange,
 }: ComboBoxProps) => {
   const [open, setOpen] = React.useState(false)
+  const t = useTranslations("common")
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -43,15 +45,15 @@ export const ComboBox = ({
         >
           {value
             ? options.find((option) => option.value === value)?.label
-            : "اختر الخيار..."}
+            : t("selectOption")}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="p-0">
         <Command>
-          <CommandInput placeholder="ابحث عن خيار..." />
+          <CommandInput placeholder={t("searchForOption")} />
           <CommandList>
-            <CommandEmpty>لا يوجد خيارات.</CommandEmpty>
+            <CommandEmpty>{t("noOptions")}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
                 <CommandItem

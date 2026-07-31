@@ -2,11 +2,11 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { CoursesTable } from "./_components/courses-table";
-import { columns } from "./_components/columns";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { PlusCircle, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { PlusCircle, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { getTranslations } from "next-intl/server";
 
 const CoursesPage = async () => {
     const { userId } = await auth();
@@ -14,6 +14,8 @@ const CoursesPage = async () => {
     if (!userId) {
         return redirect("/");
     }
+
+    const t = await getTranslations("dashboard.teacher.pages");
 
     const courses = await db.course.findMany({
         where: {
@@ -49,11 +51,11 @@ const CoursesPage = async () => {
     return (
         <div className="p-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">الكورسات الخاصة بك</h1>
+                <h1 className="text-2xl font-bold">{t("coursesTitle")}</h1>
                 <Link href="/dashboard/teacher/courses/create">
                     <Button className="bg-brand hover:bg-brand/90 text-white">
                         <PlusCircle className="h-4 w-4 mr-2" />
-                        إنشاء كورس جديدة
+                        {t("createCourse")}
                     </Button>
                 </Link>
             </div>
@@ -63,21 +65,21 @@ const CoursesPage = async () => {
                     <AlertCircle className="h-4 w-4 text-orange-600" />
                     <AlertDescription className="text-orange-800">
                         <div className="mb-2">
-                            <strong>لنشر الكورسات على الصفحة الرئيسية، تحتاج إلى:</strong>
+                            <strong>{t("publishChecklistTitle")}</strong>
                         </div>
                         <ul className="list-disc list-inside space-y-1 text-sm">
-                            <li>إضافة عنوان للكورس</li>
-                            <li>إضافة وصف للكورس</li>
-                            <li>إضافة صورة للكورس</li>
-                            <li>إضافة فصل واحد على الأقل ونشره</li>
-                            <li>النقر على زر "نشر" في صفحة إعدادات الكورس</li>
+                            <li>{t("publishCheckTitle")}</li>
+                            <li>{t("publishCheckDesc")}</li>
+                            <li>{t("publishCheckImage")}</li>
+                            <li>{t("publishCheckChapter")}</li>
+                            <li>{t("publishCheckButton")}</li>
                         </ul>
                     </AlertDescription>
                 </Alert>
             )}
 
             <div className="mt-6">
-                <CoursesTable columns={columns} data={courses} />
+                <CoursesTable data={courses} />
             </div>
         </div>
     );

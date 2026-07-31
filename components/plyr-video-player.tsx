@@ -101,7 +101,7 @@ export const PlyrVideoPlayer = ({
   if (!hasVideo) {
     return (
       <div className={`aspect-video bg-muted rounded-lg flex items-center justify-center ${className || ""}`}>
-        <div className="text-muted-foreground">لا يوجد فيديو</div>
+        <div className="text-muted-foreground">No video</div>
       </div>
     );
   }

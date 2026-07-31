@@ -9,6 +9,7 @@ import {
   type ChatAttachment,
 } from "@/lib/chat/multimodal";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 export type UIMessage = {
   id: string;
@@ -31,6 +32,7 @@ export function GeminiMessage({
   onRegenerate,
   showRegenerate = false,
 }: GeminiMessageProps) {
+  const t = useTranslations("dashboard.student.questionBank");
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
 
@@ -56,13 +58,13 @@ export function GeminiMessage({
               : "bg-gradient-to-br from-blue-500 to-purple-500 text-white"
           )}
         >
-          {isUser ? "أنت" : displayName.slice(0, 1)}
+          {isUser ? t("you") : displayName.slice(0, 1)}
         </div>
 
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-medium text-muted-foreground">
-              {isUser ? "أنت" : displayName}
+              {isUser ? t("you") : displayName}
             </span>
 
             {!isUser && message.content && !message.streaming && (
@@ -73,7 +75,7 @@ export function GeminiMessage({
                   size="icon"
                   className="h-8 w-8"
                   onClick={handleCopy}
-                  title="نسخ"
+                  title={t("copy")}
                 >
                   {copied ? (
                     <Check className="h-4 w-4 text-green-600" />
@@ -88,7 +90,7 @@ export function GeminiMessage({
                     size="icon"
                     className="h-8 w-8"
                     onClick={onRegenerate}
-                    title="إعادة الإنشاء"
+                    title={t("regenerate")}
                   >
                     <RotateCcw className="h-4 w-4" />
                   </Button>

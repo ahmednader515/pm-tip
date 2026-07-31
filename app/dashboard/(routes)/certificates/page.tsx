@@ -8,10 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Award, Download, Loader2, BookOpen, FileText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useLocale, useTranslations } from "next-intl";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 type CertificateItem = {
     courseId: string;
     courseTitle: string;
+    courseTitleEn?: string | null;
     totalChapters: number;
     completedChapters: number;
     totalQuizzes: number;
@@ -24,24 +28,26 @@ export default function CertificatesPage() {
     const [loading, setLoading] = useState(true);
     const [downloading, setDownloading] = useState<string | null>(null);
     const [names, setNames] = useState<Record<string, string>>({});
+    const t = useTranslations("dashboard.student.certificates");
+    const locale = useLocale() as Locale;
 
     useEffect(() => {
         (async () => {
             try {
                 const res = await fetch("/api/student/certificates", { cache: "no-store" });
                 if (!res.ok) {
-                    toast.error("فشل تحميل الشهادات");
+                    toast.error(t("loadFailed"));
                     return;
                 }
                 const data = await res.json();
                 setItems(Array.isArray(data) ? data : []);
             } catch {
-                toast.error("فشل تحميل الشهادات");
+                toast.error(t("loadFailed"));
             } finally {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [t]);
 
     const downloadCertificate = async (courseId: string) => {
         const name = (names[courseId] || "").trim();
@@ -83,7 +89,7 @@ export default function CertificatesPage() {
             a.click();
             a.remove();
         } catch {
-            toast.error("فشل تحميل الشهادة");
+            toast.error(t("downloadFailed"));
         } finally {
             setDownloading(null);
         }
@@ -102,10 +108,10 @@ export default function CertificatesPage() {
             <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                     <Award className="h-7 w-7" />
-                    الشهادات
+                    {t("title")}
                 </h1>
                 <p className="text-muted-foreground mt-1">
-                    الشهادات التي حصلت عليها بعد إكمال جميع الفصول والاختبارات في الكورس.
+                    {t("subtitle")}
                 </p>
             </div>
 
@@ -114,10 +120,10 @@ export default function CertificatesPage() {
                     <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                         <Award className="h-12 w-12 text-muted-foreground mb-4" />
                         <p className="text-muted-foreground">
-                            لا توجد شهادات بعد.
+                            {t("empty")}
                         </p>
                         <Button asChild className="mt-4" variant="outline">
-                            <Link href="/dashboard/quizzes">عرض الاختبارات</Link>
+                            <Link href="/dashboard/quizzes">{t("viewQuizzes")}</Link>
                         </Button>
                     </CardContent>
                 </Card>
@@ -128,25 +134,32 @@ export default function CertificatesPage() {
                             <CardHeader className="pb-2">
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                     <BookOpen className="h-4 w-4" />
-                                    {c.courseTitle}
+                                    {localizedField({ title: c.courseTitle, titleEn: c.courseTitleEn }, "title", locale)}
                                 </div>
-                                <CardTitle className="text-lg">شهادة إتمام الكورس</CardTitle>
+                                <CardTitle className="text-lg">{t("courseCertificate")}</CardTitle>
                                 <CardDescription>
-                                    الفصول: {c.completedChapters}/{c.totalChapters} • الاختبارات: {c.completedQuizzes}/{c.totalQuizzes}
+                                    {t("chaptersQuizzes", {
+                                        completedChapters: c.completedChapters,
+                                        totalChapters: c.totalChapters,
+                                        completedQuizzes: c.completedQuizzes,
+                                        totalQuizzes: c.totalQuizzes,
+                                    })}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="mt-auto pt-0 flex flex-col gap-3">
                                 <div className="flex flex-wrap gap-2">
-                                    <Badge variant="secondary">تم الاجتياز</Badge>
+                                    <Badge variant="secondary">{t("passed")}</Badge>
                                     <Badge variant="outline">
-                                        {c.completedAt ? new Date(c.completedAt).toLocaleDateString("ar-EG") : "مكتملة"}
+                                        {c.completedAt
+                                            ? new Date(c.completedAt).toLocaleDateString(locale === "ar" ? "ar-EG" : "en-US")
+                                            : t("completed")}
                                     </Badge>
                                 </div>
                                 <div className="flex flex-col gap-2">
                                     <Input
                                         value={names[c.courseId] || ""}
                                         onChange={(e) => setNames((prev) => ({ ...prev, [c.courseId]: e.target.value }))}
-                                        placeholder="الاسم على الشهادة"
+                                        placeholder={t("namePlaceholder")}
                                         dir="auto"
                                     />
                                     <Button
@@ -156,7 +169,7 @@ export default function CertificatesPage() {
                                         className="w-full gap-2 bg-brand text-white hover:bg-brand/90"
                                     >
                                         <Download className="h-4 w-4" />
-                                        {downloading === c.courseId ? "جاري التحميل..." : "تحميل الشهادة"}
+                                        {downloading === c.courseId ? t("downloading") : t("download")}
                                     </Button>
                                     <Button asChild variant="secondary" size="sm" className="w-full">
                                         <Link
@@ -164,7 +177,7 @@ export default function CertificatesPage() {
                                             className="flex items-center justify-center gap-2"
                                         >
                                             <FileText className="h-4 w-4" />
-                                            عرض صفحة الشهادة
+                                            {t("viewPage")}
                                         </Link>
                                     </Button>
                                 </div>
@@ -176,4 +189,3 @@ export default function CertificatesPage() {
         </div>
     );
 }
-

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
 const AdminCreateCoursePage = async () => {
   const { userId } = await auth();
@@ -9,10 +10,12 @@ const AdminCreateCoursePage = async () => {
     return redirect("/");
   }
 
+  const t = await getTranslations("dashboard.admin.pages");
+
   const course = await db.course.create({
     data: {
       userId,
-      title: "كورس غير معرفة",
+      title: t("untitledCourse"),
     },
   });
 
@@ -21,5 +24,3 @@ const AdminCreateCoursePage = async () => {
 };
 
 export default AdminCreateCoursePage;
-
-

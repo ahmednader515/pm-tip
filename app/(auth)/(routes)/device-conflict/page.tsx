@@ -11,10 +11,12 @@ import { signIn } from "next-auth/react";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 import { getDashboardUrlByRole } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 function DeviceConflictContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const t = useTranslations("auth.deviceConflict");
   const phoneNumber = searchParams.get("phoneNumber") || "";
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +36,7 @@ function DeviceConflictContent() {
 
       if (!response.ok) {
         const data = await response.json();
-        toast.error(data.error || "فشل تسجيل الخروج من الأجهزة الأخرى");
+        toast.error(data.error || t("errors.forceLogoutFailed"));
         return;
       }
 
@@ -46,11 +48,11 @@ function DeviceConflictContent() {
       });
 
       if (result?.error) {
-        toast.error("رقم الهاتف أو كلمة المرور غير صحيحة");
+        toast.error(t("errors.invalidCredentials"));
         return;
       }
 
-      toast.success("تم تسجيل الدخول بنجاح");
+      toast.success(t("success"));
 
       // Get user data to determine role and redirect accordingly
       const sessionResponse = await fetch("/api/auth/session", { cache: "no-store" });
@@ -66,7 +68,7 @@ function DeviceConflictContent() {
         router.replace(target);
       }
     } catch (error) {
-      toast.error("حدث خطأ أثناء تسجيل الدخول");
+      toast.error(t("errors.generic"));
     } finally {
       setIsLoading(false);
     }
@@ -85,11 +87,10 @@ function DeviceConflictContent() {
         >
           <DialogHeader>
             <DialogTitle className="text-center">
-              الحساب مسجل الدخول على جهاز آخر
+              {t("title")}
             </DialogTitle>
             <DialogDescription className="text-center">
-              هذا الحساب مسجل الدخول حالياً على جهاز آخر.
-              لتسجيل الدخول على هذا الجهاز، يجب تسجيل الخروج من جميع الأجهزة الأخرى أولاً.
+              {t("description")}
             </DialogDescription>
           </DialogHeader>
 
@@ -101,14 +102,14 @@ function DeviceConflictContent() {
               className="hidden"
             />
             <div className="space-y-2">
-              <Label htmlFor="password">كلمة المرور</Label>
+              <Label htmlFor="password">{t("passwordLabel")}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="أدخل كلمة المرور"
+                  placeholder={t("passwordPlaceholder")}
                   required
                   disabled={isLoading}
                   className="h-10"
@@ -132,10 +133,10 @@ function DeviceConflictContent() {
             <LoadingButton
               type="submit"
               loading={isLoading}
-              loadingText="جاري تسجيل الخروج والدخول..."
+              loadingText={t("submitting")}
               className="w-full h-10 bg-brand hover:bg-brand/90 text-white"
             >
-              تسجيل الخروج من جميع الأجهزة وتسجيل الدخول
+              {t("submit")}
             </LoadingButton>
           </form>
         </DialogContent>
@@ -144,11 +145,17 @@ function DeviceConflictContent() {
   );
 }
 
+function DeviceConflictFallback() {
+  const t = useTranslations("auth.deviceConflict");
+  return (
+    <div className="min-h-screen flex items-center justify-center">{t("loading")}</div>
+  );
+}
+
 export default function DeviceConflictPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">جاري التحميل...</div>}>
+    <Suspense fallback={<DeviceConflictFallback />}>
       <DeviceConflictContent />
     </Suspense>
   );
 }
-

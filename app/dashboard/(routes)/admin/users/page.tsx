@@ -1,5 +1,7 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { ar } from "date-fns/locale";
+import { ar, enUS } from "date-fns/locale";
 import { toast } from "sonner";
 import {
     Dialog,
@@ -63,6 +65,11 @@ interface EditUserData {
 }
 
 const UsersPage = () => {
+    const t = useTranslations("dashboard.admin.pages");
+    const tCommon = useTranslations("common");
+    const locale = useLocale();
+    const dateLocale = locale === "ar" ? ar : enUS;
+
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -89,7 +96,7 @@ const UsersPage = () => {
             }
         } catch (error) {
             console.error("Error fetching users:", error);
-            toast.error("حدث خطأ في تحميل المستخدمين");
+            toast.error(t("loadUsersError"));
         } finally {
             setLoading(false);
         }
@@ -119,17 +126,17 @@ const UsersPage = () => {
             });
 
             if (response.ok) {
-                toast.success("تم تحديث المستخدم بنجاح");
+                toast.success(t("updateUserSuccess"));
                 setIsEditDialogOpen(false);
                 setEditingUser(null);
                 fetchUsers(); // Refresh the list
             } else {
                 const error = await response.text();
-                toast.error(error || "حدث خطأ في تحديث المستخدم");
+                toast.error(error || {t("updateUserError")});
             }
         } catch (error) {
             console.error("Error updating user:", error);
-            toast.error("حدث خطأ في تحديث المستخدم");
+            toast.error(t("updateUserError"));
         }
     };
 
@@ -141,15 +148,15 @@ const UsersPage = () => {
             });
 
             if (response.ok) {
-                toast.success("تم حذف المستخدم بنجاح");
+                toast.success(t("deleteUserSuccess"));
                 fetchUsers(); // Refresh the list
             } else {
                 const error = await response.text();
-                toast.error(error || "حدث خطأ في حذف المستخدم");
+                toast.error(error || {t("deleteUserError")});
             }
         } catch (error) {
             console.error("Error deleting user:", error);
-            toast.error("حدث خطأ في حذف المستخدم");
+            toast.error(t("deleteUserError"));
         } finally {
             setIsDeleting(false);
         }
@@ -166,7 +173,7 @@ const UsersPage = () => {
     if (loading) {
         return (
             <div className="p-6">
-                <div className="text-center">جاري التحميل...</div>
+                <div className="text-center">{tCommon("loading")}</div>
             </div>
         );
     }
@@ -174,20 +181,18 @@ const UsersPage = () => {
     return (
         <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                    إدارة المستخدمين
-                </h1>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t("usersTitle")}</h1>
             </div>
 
             {/* Staff Table (Admins and Teachers) */}
             {staffUsers.length > 0 && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>المشرفين والمعلمين</CardTitle>
+                        <CardTitle>{tCommon("staffAndTeachers")}</CardTitle>
                         <div className="flex items-center space-x-2">
                             <Search className="h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="البحث بالاسم أو رقم الهاتف..."
+                                placeholder={tCommon("searchByNameOrPhone")}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="max-w-sm"
@@ -198,12 +203,12 @@ const UsersPage = () => {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="text-right">الاسم</TableHead>
-                                    <TableHead className="text-right">رقم الهاتف</TableHead>
-                                    <TableHead className="text-right">رقم هاتف الوالد</TableHead>
-                                    <TableHead className="text-right">الدور</TableHead>
-                                    <TableHead className="text-right">تاريخ التسجيل</TableHead>
-                                    <TableHead className="text-right">الإجراءات</TableHead>
+                                    <TableHead className="text-right">{tCommon("fullName")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("phoneNumber")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("parentPhone")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("role")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("registeredAt")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("actions")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -223,12 +228,11 @@ const UsersPage = () => {
                                                     ""
                                                 }
                                             >
-                                                {user.role === "TEACHER" ? "معلم" : 
-                                                 user.role === "ADMIN" ? "مشرف" : user.role}
+                                                {user.role === "TEACHER" ? tCommon("roleTeacher") : user.role === "ADMIN" ? tCommon("roleAdmin") : user.role}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
-                                            {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ar })}
+                                            {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: dateLocale })}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
@@ -249,16 +253,12 @@ const UsersPage = () => {
                                                     </DialogTrigger>
                                                     <DialogContent>
                                                         <DialogHeader>
-                                                            <DialogTitle>تعديل المستخدم</DialogTitle>
-                                                            <DialogDescription>
-                                                                قم بتعديل معلومات المستخدم
-                                                            </DialogDescription>
+                                                            <DialogTitle>{t("editUser")}</DialogTitle>
+                                                            <DialogDescription>{t("editUserDesc")}</DialogDescription>
                                                         </DialogHeader>
                                                         <div className="grid gap-4 py-4">
                                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                                <Label htmlFor="fullName" className="text-right">
-                                                                    الاسم
-                                                                </Label>
+                                                                <Label htmlFor="fullName" className="text-right">{tCommon("fullName")}</Label>
                                                                 <Input
                                                                     id="fullName"
                                                                     value={editData.fullName}
@@ -267,9 +267,7 @@ const UsersPage = () => {
                                                                 />
                                                             </div>
                                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                                <Label htmlFor="phoneNumber" className="text-right">
-                                                                    رقم الهاتف
-                                                                </Label>
+                                                                <Label htmlFor="phoneNumber" className="text-right">{tCommon("phoneNumber")}</Label>
                                                                 <Input
                                                                     id="phoneNumber"
                                                                     value={editData.phoneNumber}
@@ -278,9 +276,7 @@ const UsersPage = () => {
                                                                 />
                                                             </div>
                                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                                <Label htmlFor="parentPhoneNumber" className="text-right">
-                                                                    رقم هاتف الوالد
-                                                                </Label>
+                                                                <Label htmlFor="parentPhoneNumber" className="text-right">{tCommon("parentPhone")}</Label>
                                                                 <Input
                                                                     id="parentPhoneNumber"
                                                                     value={editData.parentPhoneNumber}
@@ -289,20 +285,18 @@ const UsersPage = () => {
                                                                 />
                                                             </div>
                                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                                <Label htmlFor="role" className="text-right">
-                                                                    الدور
-                                                                </Label>
+                                                                <Label htmlFor="role" className="text-right">{tCommon("role")}</Label>
                                                                 <Select
                                                                     value={editData.role}
                                                                     onValueChange={(value) => setEditData({...editData, role: value})}
                                                                 >
                                                                     <SelectTrigger className="col-span-3">
-                                                                        <SelectValue placeholder="اختر الدور" />
+                                                                        <SelectValue placeholder={tCommon("selectRole")} />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
-                                                                        <SelectItem value="USER">طالب</SelectItem>
-                                                                        <SelectItem value="TEACHER">معلم</SelectItem>
-                                                                        <SelectItem value="ADMIN">مشرف</SelectItem>
+                                                                        <SelectItem value="USER">{tCommon("roleStudent")}</SelectItem>
+                                                                        <SelectItem value="TEACHER">{tCommon("roleTeacher")}</SelectItem>
+                                                                        <SelectItem value="ADMIN">{tCommon("roleAdmin")}</SelectItem>
                                                                     </SelectContent>
                                                                 </Select>
                                                             </div>
@@ -311,12 +305,8 @@ const UsersPage = () => {
                                                             <Button variant="outline" onClick={() => {
                                                                 setIsEditDialogOpen(false);
                                                                 setEditingUser(null);
-                                                            }}>
-                                                                إلغاء
-                                                            </Button>
-                                                            <Button onClick={handleSaveUser}>
-                                                                حفظ التغييرات
-                                                            </Button>
+                                                            }}>{tCommon("cancel")}</Button>
+                                                            <Button onClick={handleSaveUser}>{tCommon("saveChanges")}</Button>
                                                         </DialogFooter>
                                                     </DialogContent>
                                                 </Dialog>
@@ -333,19 +323,15 @@ const UsersPage = () => {
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader>
-                                                            <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                هذا الإجراء لا يمكن التراجع عنه. سيتم حذف المستخدم وجميع البيانات المرتبطة به نهائياً.
-                                                            </AlertDialogDescription>
+                                                            <AlertDialogTitle>{tCommon("confirmSure")}</AlertDialogTitle>
+                                                            <AlertDialogDescription>{t("deleteUserConfirm")}</AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
-                                                            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                                            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
                                                             <AlertDialogAction
                                                                 onClick={() => handleDeleteUser(user.id)}
                                                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                            >
-                                                                حذف
-                                                            </AlertDialogAction>
+                                                            >{tCommon("delete")}</AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
                                                 </AlertDialog>
@@ -363,11 +349,11 @@ const UsersPage = () => {
             {studentUsers.length > 0 && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>قائمة الطلاب</CardTitle>
+                        <CardTitle>{tCommon("studentsList")}</CardTitle>
                         <div className="flex items-center space-x-2">
                             <Search className="h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="البحث بالاسم أو رقم الهاتف..."
+                                placeholder={tCommon("searchByNameOrPhone")}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="max-w-sm"
@@ -378,14 +364,14 @@ const UsersPage = () => {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="text-right">الاسم</TableHead>
-                                    <TableHead className="text-right">رقم الهاتف</TableHead>
-                                    <TableHead className="text-right">رقم هاتف الوالد</TableHead>
-                                    <TableHead className="text-right">الدور</TableHead>
-                                    <TableHead className="text-right">الرصيد</TableHead>
-                                    <TableHead className="text-right">الكورسات المشتراة</TableHead>
-                                    <TableHead className="text-right">تاريخ التسجيل</TableHead>
-                                    <TableHead className="text-right">الإجراءات</TableHead>
+                                    <TableHead className="text-right">{tCommon("fullName")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("phoneNumber")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("parentPhone")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("role")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("balanceLabel")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("purchasedCourses")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("registeredAt")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("actions")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -397,13 +383,11 @@ const UsersPage = () => {
                                         <TableCell>{user.phoneNumber}</TableCell>
                                         <TableCell>{user.parentPhoneNumber}</TableCell>
                                         <TableCell>
-                                            <Badge variant="secondary">
-                                                طالب
-                                            </Badge>
+                                            <Badge variant="secondary">{tCommon("roleStudent")}</Badge>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="secondary">
-                                                {user.balance} جنيه
+                                                {tCommon("amountEgp", { amount: user.balance })}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
@@ -412,7 +396,7 @@ const UsersPage = () => {
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
-                                            {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ar })}
+                                            {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: dateLocale })}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
@@ -433,16 +417,12 @@ const UsersPage = () => {
                                                     </DialogTrigger>
                                                     <DialogContent>
                                                         <DialogHeader>
-                                                            <DialogTitle>تعديل المستخدم</DialogTitle>
-                                                            <DialogDescription>
-                                                                قم بتعديل معلومات المستخدم
-                                                            </DialogDescription>
+                                                            <DialogTitle>{t("editUser")}</DialogTitle>
+                                                            <DialogDescription>{t("editUserDesc")}</DialogDescription>
                                                         </DialogHeader>
                                                         <div className="grid gap-4 py-4">
                                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                                <Label htmlFor="fullName" className="text-right">
-                                                                    الاسم
-                                                                </Label>
+                                                                <Label htmlFor="fullName" className="text-right">{tCommon("fullName")}</Label>
                                                                 <Input
                                                                     id="fullName"
                                                                     value={editData.fullName}
@@ -451,9 +431,7 @@ const UsersPage = () => {
                                                                 />
                                                             </div>
                                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                                <Label htmlFor="phoneNumber" className="text-right">
-                                                                    رقم الهاتف
-                                                                </Label>
+                                                                <Label htmlFor="phoneNumber" className="text-right">{tCommon("phoneNumber")}</Label>
                                                                 <Input
                                                                     id="phoneNumber"
                                                                     value={editData.phoneNumber}
@@ -462,9 +440,7 @@ const UsersPage = () => {
                                                                 />
                                                             </div>
                                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                                <Label htmlFor="parentPhoneNumber" className="text-right">
-                                                                    رقم هاتف الوالد
-                                                                </Label>
+                                                                <Label htmlFor="parentPhoneNumber" className="text-right">{tCommon("parentPhone")}</Label>
                                                                 <Input
                                                                     id="parentPhoneNumber"
                                                                     value={editData.parentPhoneNumber}
@@ -473,20 +449,18 @@ const UsersPage = () => {
                                                                 />
                                                             </div>
                                                             <div className="grid grid-cols-4 items-center gap-4">
-                                                                <Label htmlFor="role" className="text-right">
-                                                                    الدور
-                                                                </Label>
+                                                                <Label htmlFor="role" className="text-right">{tCommon("role")}</Label>
                                                                 <Select
                                                                     value={editData.role}
                                                                     onValueChange={(value) => setEditData({...editData, role: value})}
                                                                 >
                                                                     <SelectTrigger className="col-span-3">
-                                                                        <SelectValue placeholder="اختر الدور" />
+                                                                        <SelectValue placeholder={tCommon("selectRole")} />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
-                                                                        <SelectItem value="USER">طالب</SelectItem>
-                                                                        <SelectItem value="TEACHER">معلم</SelectItem>
-                                                                        <SelectItem value="ADMIN">مشرف</SelectItem>
+                                                                        <SelectItem value="USER">{tCommon("roleStudent")}</SelectItem>
+                                                                        <SelectItem value="TEACHER">{tCommon("roleTeacher")}</SelectItem>
+                                                                        <SelectItem value="ADMIN">{tCommon("roleAdmin")}</SelectItem>
                                                                     </SelectContent>
                                                                 </Select>
                                                             </div>
@@ -495,12 +469,8 @@ const UsersPage = () => {
                                                             <Button variant="outline" onClick={() => {
                                                                 setIsEditDialogOpen(false);
                                                                 setEditingUser(null);
-                                                            }}>
-                                                                إلغاء
-                                                            </Button>
-                                                            <Button onClick={handleSaveUser}>
-                                                                حفظ التغييرات
-                                                            </Button>
+                                                            }}>{tCommon("cancel")}</Button>
+                                                            <Button onClick={handleSaveUser}>{tCommon("saveChanges")}</Button>
                                                         </DialogFooter>
                                                     </DialogContent>
                                                 </Dialog>
@@ -517,19 +487,15 @@ const UsersPage = () => {
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader>
-                                                            <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                هذا الإجراء لا يمكن التراجع عنه. سيتم حذف المستخدم وجميع البيانات المرتبطة به نهائياً.
-                                                            </AlertDialogDescription>
+                                                            <AlertDialogTitle>{tCommon("confirmSure")}</AlertDialogTitle>
+                                                            <AlertDialogDescription>{t("deleteUserConfirm")}</AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
-                                                            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                                            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
                                                             <AlertDialogAction
                                                                 onClick={() => handleDeleteUser(user.id)}
                                                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                            >
-                                                                حذف
-                                                            </AlertDialogAction>
+                                                            >{tCommon("delete")}</AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
                                                 </AlertDialog>

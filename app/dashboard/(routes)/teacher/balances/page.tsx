@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,9 @@ interface User {
 }
 
 const TeacherBalancesPage = () => {
+    const t = useTranslations("dashboard.teacher.pages");
+    const tCommon = useTranslations("common");
+    
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -47,13 +52,13 @@ const TeacherBalancesPage = () => {
 
     const handleBalanceUpdate = async () => {
         if (!selectedUser || !newBalance) {
-            toast.error("يرجى إدخال رصيد جديد");
+            toast.error(t("enterNewBalance"));
             return;
         }
 
         const balance = parseFloat(newBalance);
         if (isNaN(balance) || balance < 0) {
-            toast.error("يرجى إدخال رصيد صحيح");
+            toast.error(t("enterValidBalance"));
             return;
         }
 
@@ -67,17 +72,17 @@ const TeacherBalancesPage = () => {
             });
 
             if (response.ok) {
-                toast.success("تم تحديث الرصيد بنجاح");
+                toast.success(t("updateBalanceSuccess"));
                 setNewBalance("");
                 setIsDialogOpen(false);
                 setSelectedUser(null);
                 fetchUsers(); // Refresh the list
             } else {
-                toast.error("حدث خطأ أثناء تحديث الرصيد");
+                toast.error(t("updateBalanceError"));
             }
         } catch (error) {
             console.error("Error updating balance:", error);
-            toast.error("حدث خطأ أثناء تحديث الرصيد");
+            toast.error(t("updateBalanceError"));
         }
     };
 
@@ -91,7 +96,7 @@ const TeacherBalancesPage = () => {
     if (loading) {
         return (
             <div className="p-6">
-                <div className="text-center">جاري التحميل...</div>
+                <div className="text-center">{tCommon("loading")}</div>
             </div>
         );
     }
@@ -99,20 +104,18 @@ const TeacherBalancesPage = () => {
     return (
         <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                    إدارة الأرصدة
-                </h1>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t("balancesTitle")}</h1>
             </div>
 
             {/* Students Table */}
             {studentUsers.length > 0 && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>قائمة الطلاب</CardTitle>
+                        <CardTitle>{tCommon("studentsList")}</CardTitle>
                         <div className="flex items-center space-x-2">
                             <Search className="h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="البحث بالاسم أو رقم الهاتف..."
+                                placeholder={tCommon("searchByNameOrPhone")}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="max-w-sm"
@@ -123,11 +126,11 @@ const TeacherBalancesPage = () => {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="text-right">الاسم</TableHead>
-                                    <TableHead className="text-right">رقم الهاتف</TableHead>
-                                    <TableHead className="text-right">الدور</TableHead>
-                                    <TableHead className="text-right">الرصيد الحالي</TableHead>
-                                    <TableHead className="text-right">الإجراءات</TableHead>
+                                    <TableHead className="text-right">{tCommon("fullName")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("phoneNumber")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("role")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("currentBalance")}</TableHead>
+                                    <TableHead className="text-right">{tCommon("actions")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -138,14 +141,12 @@ const TeacherBalancesPage = () => {
                                         </TableCell>
                                         <TableCell>{user.phoneNumber}</TableCell>
                                         <TableCell>
-                                            <Badge variant="secondary">
-                                                طالب
-                                            </Badge>
+                                            <Badge variant="secondary">{tCommon("roleStudent")}</Badge>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className="flex items-center gap-1">
                                                 <Wallet className="h-3 w-3" />
-                                                {user.balance} جنيه
+                                                {tCommon("amountEgp", { amount: user.balance })}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
@@ -158,9 +159,7 @@ const TeacherBalancesPage = () => {
                                                     setIsDialogOpen(true);
                                                 }}
                                             >
-                                                <Edit className="h-4 w-4" />
-                                                تعديل الرصيد
-                                            </Button>
+                                                <Edit className="h-4 w-4" />{t("editBalance")}</Button>
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -174,7 +173,7 @@ const TeacherBalancesPage = () => {
                 <Card>
                     <CardContent className="p-6">
                         <div className="text-center text-muted-foreground">
-                            لا توجد طلاب متاحين
+                            {t("noStudentsAvailable")}
                         </div>
                     </CardContent>
                 </Card>
@@ -194,18 +193,18 @@ const TeacherBalancesPage = () => {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            تعديل رصيد {selectedUser?.fullName}
+                            {t("editBalanceFor", { name: selectedUser?.fullName })}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="newBalance">الرصيد الجديد (جنيه)</Label>
+                            <Label htmlFor="newBalance">{t("newBalanceLabel")}</Label>
                             <Input
                                 id="newBalance"
                                 type="number"
                                 value={newBalance}
                                 onChange={(e) => setNewBalance(e.target.value)}
-                                placeholder="أدخل الرصيد الجديد"
+                                placeholder={t("newBalancePlaceholder")}
                                 min="0"
                                 step="0.01"
                             />
@@ -218,12 +217,8 @@ const TeacherBalancesPage = () => {
                                     setNewBalance("");
                                     setSelectedUser(null);
                                 }}
-                            >
-                                إلغاء
-                            </Button>
-                            <Button onClick={handleBalanceUpdate}>
-                                تحديث الرصيد
-                            </Button>
+                            >{tCommon("cancel")}</Button>
+                            <Button onClick={handleBalanceUpdate}>{t("updateBalance")}</Button>
                         </div>
                     </div>
                 </DialogContent>

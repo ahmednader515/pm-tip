@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ChapterForm } from "./_components/chapter-form";
 import { VideoForm } from "./_components/video-form";
 import Link from "next/link";
@@ -40,6 +41,9 @@ export default async function ChapterPage({
         return redirect("/");
     }
 
+    const t = await getTranslations("dashboard.teacher.chapterEditor");
+    const tCourseEditor = await getTranslations("dashboard.teacher.courseEditor");
+
     const requiredFields = [
         chapter.title,
         chapter.description,
@@ -48,8 +52,6 @@ export default async function ChapterPage({
 
     const totalFields = requiredFields.length;
     const completedFields = requiredFields.filter(Boolean).length;
-
-    const completionText = `(${completedFields}/${totalFields})`;
 
     return (
         <div className="p-6">
@@ -64,14 +66,14 @@ export default async function ChapterPage({
                     >
                         <Button variant="ghost" className="mb-4">
                             <ArrowLeft className="h-4 w-4 mr-2" />
-                            الرجوع إلى إعدادات الكورس
+                            {t("backToCourseSettings")}
                         </Button>
                     </Link>
                     <h1 className="text-2xl font-medium">
-                        إعدادات الفصل
+                        {t("chapterSettingsTitle")}
                     </h1>
                     <span className="text-sm text-muted-foreground">
-                        أكمل جميع الحقول {completionText}
+                        {tCourseEditor("completeFields", { completed: completedFields, total: totalFields })}
                     </span>
                 </div>
             </div>
@@ -88,7 +90,7 @@ export default async function ChapterPage({
                         <div className="flex items-center gap-x-2">
                             <IconBadge icon={Video} />
                             <h2 className="text-xl">
-                                إضافة فيديو
+                                {t("addVideoTitle")}
                             </h2>
                         </div>
                         <VideoForm

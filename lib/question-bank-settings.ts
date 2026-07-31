@@ -4,10 +4,12 @@ export const DEFAULT_QUESTION_BANK_DISPLAY_NAME = "بنك الأسئلة";
 
 export type QuestionBankSettingsContent = {
   displayName: string;
+  displayNameEn: string;
 };
 
 export const DEFAULT_QUESTION_BANK_SETTINGS: QuestionBankSettingsContent = {
   displayName: DEFAULT_QUESTION_BANK_DISPLAY_NAME,
+  displayNameEn: "",
 };
 
 export function parseQuestionBankSettingsUpdateBody(
@@ -34,9 +36,26 @@ export function parseQuestionBankSettingsUpdateBody(
     data.displayName = trimmed;
   }
 
+  if ("displayNameEn" in record) {
+    if (record.displayNameEn != null && typeof record.displayNameEn !== "string") {
+      return { data: {}, error: "displayNameEn must be a string" };
+    }
+    const trimmed = record.displayNameEn == null ? "" : String(record.displayNameEn).trim();
+    if (trimmed.length > 100) {
+      return { data: {}, error: "displayNameEn is too long (max 100 characters)" };
+    }
+    data.displayNameEn = trimmed;
+  }
+
   return { data };
 }
 
-export function getWelcomeMessage(displayName: string): string {
+export function getWelcomeMessage(
+  displayName: string,
+  locale: string = "ar"
+): string {
+  if (locale === "en") {
+    return `Welcome to ${displayName}. How can I help you today?`;
+  }
   return `مرحباً في ${displayName}. كيف يمكنني مساعدتك اليوم؟`;
 }

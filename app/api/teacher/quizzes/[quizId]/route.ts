@@ -38,10 +38,13 @@ export async function GET(
                     select: {
                         id: true,
                         text: true,
+                        textEn: true,
                         type: true,
                         options: true,
+                        optionsEn: true,
                         correctAnswer: true,
                         explanation: true,
+                        explanationEn: true,
                         points: true,
                         imageUrl: true,
                         position: true
@@ -67,13 +70,15 @@ export async function GET(
                 try {
                     return {
                         ...question,
-                        options: parseQuizOptions(question.options)
+                        options: parseQuizOptions(question.options),
+                        optionsEn: parseQuizOptions(question.optionsEn),
                     };
                 } catch (parseError) {
                     console.log("[TEACHER_QUIZ_GET] Error parsing options for question:", question.id, parseError);
                     return {
                         ...question,
-                        options: question.options ? JSON.parse(question.options) : null
+                        options: question.options ? JSON.parse(question.options) : null,
+                        optionsEn: question.optionsEn ? parseQuizOptions(question.optionsEn) : [],
                     };
                 }
             })
@@ -94,7 +99,7 @@ export async function PATCH(
     try {
         const { userId, user } = await auth();
         const resolvedParams = await params;
-        const { title, description, questions, position, timer, maxAttempts, courseId, certificateEnabled, certificatePassPercentage } = await req.json();
+        const { title, titleEn, description, descriptionEn, questions, position, timer, maxAttempts, courseId, certificateEnabled, certificatePassPercentage } = await req.json();
 
         if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -184,7 +189,19 @@ export async function PATCH(
             },
             data: {
                 title,
+                ...(titleEn !== undefined && {
+                    titleEn:
+                        titleEn == null || String(titleEn).trim() === ""
+                            ? null
+                            : String(titleEn).trim(),
+                }),
                 description,
+                ...(descriptionEn !== undefined && {
+                    descriptionEn:
+                        descriptionEn == null || String(descriptionEn).trim() === ""
+                            ? null
+                            : String(descriptionEn).trim(),
+                }),
                 courseId: targetCourseId, // Update courseId if changed
                 position: Number(quizPosition), // Explicitly cast to number
                 timer: timer || null,
@@ -223,10 +240,24 @@ export async function PATCH(
                     }
                     return {
                         text: question.text,
+                        textEn:
+                            question.textEn == null || String(question.textEn).trim() === ""
+                                ? null
+                                : String(question.textEn).trim(),
                         type: question.type,
                         options: question.type === "MULTIPLE_CHOICE" ? stringifyQuizOptions(question.options) : null,
+                        optionsEn:
+                            question.type === "MULTIPLE_CHOICE" && Array.isArray(question.optionsEn)
+                                ? stringifyQuizOptions(question.optionsEn)
+                                : question.type === "MULTIPLE_CHOICE" && typeof question.optionsEn === "string"
+                                ? question.optionsEn.trim() || null
+                                : null,
                         correctAnswer: correctAnswerValue,
                         explanation: question.explanation?.trim() || null,
+                        explanationEn:
+                            question.explanationEn == null || String(question.explanationEn).trim() === ""
+                                ? null
+                                : String(question.explanationEn).trim(),
                         points: question.points,
                         imageUrl: question.imageUrl || null,
                         quizId: resolvedParams.quizId,
@@ -262,7 +293,8 @@ export async function PATCH(
             ...quizWithQuestions,
             questions: quizWithQuestions.questions.map(question => ({
                 ...question,
-                options: parseQuizOptions(question.options)
+                options: parseQuizOptions(question.options),
+                optionsEn: parseQuizOptions(question.optionsEn),
             }))
         };
 

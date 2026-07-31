@@ -1,12 +1,19 @@
 export type StoreProductInput = {
     title?: string;
+    titleEn?: string | null;
     description?: string | null;
+    descriptionEn?: string | null;
     imageUrl?: string | null;
     price?: number;
     downloadUrl?: string;
     isPublished?: boolean;
     position?: number;
 };
+
+function optionalNullableString(value: unknown): string | null {
+    if (value == null || value === "") return null;
+    return String(value).trim() || null;
+}
 
 export function parseStoreProductBody(body: unknown): {
     data: StoreProductInput;
@@ -23,8 +30,14 @@ export function parseStoreProductBody(body: unknown): {
         if (!title) return { data: {}, error: "Title is required" };
         data.title = title;
     }
+    if (b.titleEn !== undefined) {
+        data.titleEn = optionalNullableString(b.titleEn);
+    }
     if (b.description !== undefined) {
         data.description = b.description == null ? null : String(b.description);
+    }
+    if (b.descriptionEn !== undefined) {
+        data.descriptionEn = optionalNullableString(b.descriptionEn);
     }
     if (b.imageUrl !== undefined) {
         data.imageUrl = b.imageUrl == null || b.imageUrl === "" ? null : String(b.imageUrl);

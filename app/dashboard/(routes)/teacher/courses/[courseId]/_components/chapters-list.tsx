@@ -6,6 +6,7 @@ import { Grip, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface ChaptersListProps {
     items: Chapter[];
@@ -20,6 +21,8 @@ export const ChaptersList = ({
     onEdit,
     onDelete
 }: ChaptersListProps) => {
+    const tCommon = useTranslations("common");
+    const tCourse = useTranslations("course");
     const onDragEnd = (result: DropResult) => {
         if (!result.destination) return;
 
@@ -70,7 +73,7 @@ export const ChaptersList = ({
                                         <div className="ml-auto pr-2 flex items-center gap-x-2">
                                             {chapter.isFree && (
                                                 <Badge>
-                                                    مجاني
+                                                    {tCourse("free")}
                                                 </Badge>
                                             )}
                                             <Badge
@@ -79,7 +82,7 @@ export const ChaptersList = ({
                                                     chapter.isPublished && "bg-primary text-primary-foreground"
                                                 )}
                                             >
-                                                {chapter.isPublished ? "تم النشر" : "مسودة"}
+                                                {chapter.isPublished ? tCommon("published") : tCommon("draft")}
                                             </Badge>
                                             <button
                                                 onClick={() => onEdit(chapter.id)}

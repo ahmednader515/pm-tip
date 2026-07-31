@@ -22,6 +22,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, BookOpen, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useLocale, useTranslations } from "next-intl";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,11 +36,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type CourseOption = { id: string; title: string; imageUrl: string | null; isPublished: boolean };
-type SubCourse = { course: { id: string; title: string; imageUrl: string | null } };
+type CourseOption = { id: string; title: string; titleEn?: string | null; imageUrl: string | null; isPublished: boolean };
+type SubCourse = { course: { id: string; title: string; titleEn?: string | null; imageUrl: string | null } };
 type Subscription = {
   id: string;
   title: string;
+  titleEn?: string | null;
   type: string;
   price: number;
   courses: SubCourse[];
@@ -45,6 +49,10 @@ type Subscription = {
 };
 
 export default function TeacherSubscriptionsPage() {
+  const t = useTranslations("dashboard.teacher.pages");
+  const tCommon = useTranslations("common");
+  const tEditor = useTranslations("editor");
+  const locale = useLocale() as Locale;
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +62,7 @@ export default function TeacherSubscriptionsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     title: "",
+    titleEn: "",
     type: "MONTHLY" as "MONTHLY" | "YEARLY",
     price: "",
     courseIds: [] as string[],
@@ -71,10 +80,10 @@ export default function TeacherSubscriptionsPage() {
         const data = await res.json();
         setSubscriptions(data);
       } else {
-        toast.error("فشل تحميل الاشتراكات");
+        toast.error(t("loadSubscriptionsError"));
       }
     } catch (e) {
-      toast.error("فشل تحميل الاشتراكات");
+      toast.error(t("loadSubscriptionsError"));
     } finally {
       setLoading(false);
     }
@@ -94,7 +103,7 @@ export default function TeacherSubscriptionsPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ title: "", type: "MONTHLY", price: "", courseIds: [] });
+    setForm({ title: "", titleEn: "", type: "MONTHLY", price: "", courseIds: [] });
     setDialogOpen(true);
   };
 
@@ -102,6 +111,7 @@ export default function TeacherSubscriptionsPage() {
     setEditingId(s.id);
     setForm({
       title: s.title,
+      titleEn: s.titleEn ?? "",
       type: s.type as "MONTHLY" | "YEARLY",
       price: String(s.price),
       courseIds: s.courses.map((sc) => sc.course.id),
@@ -111,17 +121,18 @@ export default function TeacherSubscriptionsPage() {
 
   const handleSave = async () => {
     const title = form.title.trim();
+    const titleEn = form.titleEn.trim() || null;
     const priceNum = parseFloat(form.price);
     if (!title) {
-      toast.error("أدخل عنوان الاشتراك");
+      toast.error(t("enterSubscriptionTitle"));
       return;
     }
     if (isNaN(priceNum) || priceNum < 0) {
-      toast.error("أدخل سعراً صحيحاً");
+      toast.error(t("enterValidPrice"));
       return;
     }
     if (form.courseIds.length === 0) {
-      toast.error("اختر كورس واحد على الأقل");
+      toast.error(t("selectAtLeastOneCourse"));
       return;
     }
     setSaving(true);
@@ -130,24 +141,28 @@ export default function TeacherSubscriptionsPage() {
         ? `/api/teacher/subscriptions/${editingId}`
         : "/api/teacher/subscriptions";
       const method = editingId ? "PATCH" : "POST";
-      const body = editingId
-        ? { title, type: form.type, price: priceNum, courseIds: form.courseIds }
-        : { title, type: form.type, price: priceNum, courseIds: form.courseIds };
+      const body = {
+        title,
+        titleEn,
+        type: form.type,
+        price: priceNum,
+        courseIds: form.courseIds,
+      };
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        toast.success(editingId ? "تم تحديث الاشتراك" : "تم إنشاء الاشتراك");
+        toast.success(editingId ? t("subscriptionUpdated") : t("subscriptionCreated"));
         setDialogOpen(false);
         fetchSubscriptions();
       } else {
         const err = await res.text();
-        toast.error(err || "حدث خطأ");
+        toast.error(err || t("genericError"));
       }
     } catch (e) {
-      toast.error("حدث خطأ");
+      toast.error(t("genericError"));
     } finally {
       setSaving(false);
     }
@@ -160,14 +175,14 @@ export default function TeacherSubscriptionsPage() {
         method: "DELETE",
       });
       if (res.ok) {
-        toast.success("تم حذف الاشتراك");
+        toast.success(t("subscriptionDeleted"));
         setDeleteId(null);
         fetchSubscriptions();
       } else {
-        toast.error("فشل الحذف");
+        toast.error(t("deleteFailed"));
       }
     } catch (e) {
-      toast.error("فشل الحذف");
+      toast.error(t("deleteFailed"));
     }
   };
 
@@ -191,18 +206,16 @@ export default function TeacherSubscriptionsPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">الاشتراكات</h1>
+        <h1 className="text-2xl font-bold">{t("subscriptionsTitle")}</h1>
         <Button onClick={openCreate} className="bg-brand hover:bg-brand/90 text-white">
-          <Plus className="h-4 w-4 ml-2" />
-          إنشاء اشتراك
-        </Button>
+          <Plus className="h-4 w-4 ml-2" />{t("createSubscription")}</Button>
       </div>
 
       {subscriptions.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
             <p className="text-muted-foreground text-center py-8">
-              لا توجد اشتراكات. أنشئ اشتراكاً شهرياً أو سنوياً واختر الكورسات المتضمنة.
+              {t("noSubscriptionsHint")}
             </p>
           </CardContent>
         </Card>
@@ -212,7 +225,9 @@ export default function TeacherSubscriptionsPage() {
             <Card key={s.id}>
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-lg">{s.title}</CardTitle>
+                  <CardTitle className="text-lg">
+                    {localizedField(s as unknown as Record<string, unknown>, "title", locale)}
+                  </CardTitle>
                   <div className="flex gap-1 shrink-0">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
                       <Pencil className="h-4 w-4" />
@@ -229,22 +244,24 @@ export default function TeacherSubscriptionsPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="secondary">
-                    {s.type === "MONTHLY" ? "شهري" : "سنوي"}
+                    {s.type === "MONTHLY" ? tCommon("monthly") : tCommon("yearly")}
                   </Badge>
-                  <span className="font-semibold text-brand">{s.price} ج.م</span>
+                  <span className="font-semibold text-brand">{s.price} {t("egpShort")}</span>
                 </div>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground flex items-center gap-1">
                   <BookOpen className="h-4 w-4" />
-                  {s.courses.length} كورس
+                  {tCommon("courseCount", { count: s.courses.length })}
                 </p>
                 <ul className="mt-2 text-sm list-disc list-inside text-muted-foreground">
                   {s.courses.slice(0, 3).map((sc) => (
-                    <li key={sc.course.id}>{sc.course.title}</li>
+                    <li key={sc.course.id}>
+                      {localizedField(sc.course as unknown as Record<string, unknown>, "title", locale)}
+                    </li>
                   ))}
                   {s.courses.length > 3 && (
-                    <li>و {s.courses.length - 3} آخر</li>
+                    <li>{t("andMore", { count: s.courses.length - 3 })}</li>
                   )}
                 </ul>
               </CardContent>
@@ -256,19 +273,28 @@ export default function TeacherSubscriptionsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingId ? "تعديل الاشتراك" : "اشتراك جديد"}</DialogTitle>
+            <DialogTitle>{editingId ? t("editSubscription") : t("newSubscription")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label>العنوان</Label>
+              <Label>{t("titleLabel")}</Label>
               <Input
                 value={form.title}
                 onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                placeholder="مثال: باقة المواد الأساسية"
+                placeholder={t("subscriptionTitleExample")}
               />
             </div>
             <div>
-              <Label>النوع</Label>
+              <Label>{tCommon("englishLabel")} — {tEditor("subscriptionTitleEn")}</Label>
+              <Input
+                dir="ltr"
+                value={form.titleEn}
+                onChange={(e) => setForm((p) => ({ ...p, titleEn: e.target.value }))}
+                placeholder="e.g. Core Subjects Bundle"
+              />
+            </div>
+            <div>
+              <Label>{t("subscriptionType")}</Label>
               <Select
                 value={form.type}
                 onValueChange={(v: "MONTHLY" | "YEARLY") =>
@@ -279,13 +305,13 @@ export default function TeacherSubscriptionsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MONTHLY">شهري</SelectItem>
-                  <SelectItem value="YEARLY">سنوي</SelectItem>
+                  <SelectItem value="MONTHLY">{tCommon("monthly")}</SelectItem>
+                  <SelectItem value="YEARLY">{tCommon("yearly")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>السعر (ج.م)</Label>
+              <Label>{t("priceEgp")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -296,10 +322,10 @@ export default function TeacherSubscriptionsPage() {
               />
             </div>
             <div>
-              <Label>الكورسات المتضمنة</Label>
+              <Label>{t("includedCourses")}</Label>
               <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 mt-1">
                 {courses.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">لا توجد كورسات. أنشئ كورسات أولاً.</p>
+                  <p className="text-sm text-muted-foreground">{t("noCoursesCreateFirst")}</p>
                 ) : (
                   courses.map((c) => (
                     <label
@@ -313,8 +339,8 @@ export default function TeacherSubscriptionsPage() {
                         className="rounded"
                       />
                       <span className={!c.isPublished ? "text-muted-foreground" : ""}>
-                        {c.title}
-                        {!c.isPublished && " (غير منشور)"}
+                        {localizedField(c as unknown as Record<string, unknown>, "title", locale)}
+                        {!c.isPublished && t("unpublishedParen")}
                       </span>
                     </label>
                   ))
@@ -323,15 +349,19 @@ export default function TeacherSubscriptionsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              إلغاء
-            </Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{tCommon("cancel")}</Button>
             <Button
               onClick={handleSave}
               disabled={saving || form.courseIds.length === 0}
               className="bg-brand hover:bg-brand/90"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "حفظ"}
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : editingId ? (
+                t("save")
+              ) : (
+                t("create")
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -340,16 +370,14 @@ export default function TeacherSubscriptionsPage() {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف الاشتراك</AlertDialogTitle>
+            <AlertDialogTitle>{t("deleteSubscription")}</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف هذا الاشتراك؟ لا يمكن التراجع.
+              {t("deleteSubscriptionConfirmLong")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-              حذف
-            </AlertDialogAction>
+            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">{tCommon("delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

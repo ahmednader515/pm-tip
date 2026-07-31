@@ -13,13 +13,18 @@ import { ScrollProgress } from "@/components/scroll-progress";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { localizedField, localizedText } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 // Define types based on Prisma schema
 type Course = {
   id: string;
   userId: string;
   title: string;
+  titleEn?: string | null;
   description?: string | null;
+  descriptionEn?: string | null;
   imageUrl?: string | null;
   price?: number | null;
   isPublished: boolean;
@@ -46,12 +51,16 @@ type CourseWithProgress = Course & {
 type StoreProductPublic = {
   id: string;
   title: string;
+  titleEn?: string | null;
   description?: string | null;
+  descriptionEn?: string | null;
   imageUrl?: string | null;
   price: number;
 };
 
 export default function HomePage() {
+  const t = useTranslations("home");
+  const locale = useLocale() as Locale;
   const [courses, setCourses] = useState<CourseWithProgress[]>([]);
   const [storeProducts, setStoreProducts] = useState<StoreProductPublic[]>([]);
   const homepage = useHomepageSettings();
@@ -156,7 +165,7 @@ export default function HomePage() {
               <div className="absolute inset-2 md:inset-4">
                 <Image
                   src={homepage.teacherImageUrl}
-                  alt="منصة PM TIPS"
+                  alt={t("brandAlt")}
                   fill
                   priority
                   className="object-contain object-center"
@@ -193,7 +202,7 @@ export default function HomePage() {
             >
               <Image
                 src="/graduation-hat.png"
-                alt="حصيلة"
+                alt={t("imageAlts.graduationHat")}
                 width={50}
                 height={50}
                 className="object-contain"
@@ -226,7 +235,7 @@ export default function HomePage() {
             >
               <Image
                 src="/medal.png"
-                alt="ميدالية"
+                alt={t("imageAlts.medal")}
                 width={40}
                 height={40}
                 className="object-contain"
@@ -259,7 +268,7 @@ export default function HomePage() {
             >
               <Image
                 src="/notebook.png"
-                alt="دفتر"
+                alt={t("imageAlts.notebook")}
                 width={55}
                 height={55}
                 className="object-contain"
@@ -278,11 +287,11 @@ export default function HomePage() {
             <span className="text-brand">PM TIPS</span>
             </h1>
             <p className="text-xl md:text-2xl text-muted-foreground mb-8">
-              طريقك للنجاح و التفوق
+              {t("tagline")}
             </p>
             <Button size="lg" asChild className="bg-brand hover:bg-brand/90 text-white">
               <Link href="/sign-up">
-                ابدأ الآن <ArrowRight className="mr-2 h-4 w-4" />
+                {t("ctaStart")} <ArrowRight className="mr-2 h-4 w-4" />
               </Link>
             </Button>
           </motion.div>
@@ -338,8 +347,8 @@ export default function HomePage() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl font-bold mb-4">الكورسات المتاحة</h2>
-            <p className="text-muted-foreground">اكتشف مجموعة متنوعة من الكورسات التعليمية المميزة</p>
+            <h2 className="text-3xl font-bold mb-4">{t("courses.title")}</h2>
+            <p className="text-muted-foreground">{t("courses.subtitle")}</p>
           </motion.div>
 
           <motion.div
@@ -370,9 +379,9 @@ export default function HomePage() {
                     <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                       <BookOpen className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <h3 className="text-lg font-semibold mb-2">لا توجد كورسات متاحة حالياً</h3>
+                    <h3 className="text-lg font-semibold mb-2">{t("courses.emptyTitle")}</h3>
                     <p className="text-muted-foreground mb-4">
-                      سيتم إضافة الكورسات قريباً. تحقق من هذه الصفحة لاحقاً للاطلاع على أحدث الكورسات التعليمية.
+                      {t("courses.emptyDescription")}
                     </p>
                     <Button 
                       variant="outline" 
@@ -380,7 +389,7 @@ export default function HomePage() {
                       className="bg-brand hover:bg-brand/90 text-white border-brand"
                     >
                       <Link href="/sign-up">
-                        سجل الآن للوصول المبكر
+                        {t("courses.earlyAccess")}
                       </Link>
                     </Button>
                   </div>
@@ -398,7 +407,7 @@ export default function HomePage() {
                     <div className="relative w-full aspect-video">
                       <Image
                         src={course.imageUrl || "/placeholder.png"}
-                        alt={course.title}
+                        alt={localizedField(course as unknown as Record<string, unknown>, "title", locale)}
                         fill
                         className="object-cover rounded-t-xl"
                       />
@@ -406,14 +415,14 @@ export default function HomePage() {
                     </div>
                     <div className="p-4">
                       <h3 className="text-lg font-semibold mb-2 line-clamp-2">
-                        {course.title}
+                        {localizedField(course as unknown as Record<string, unknown>, "title", locale)}
                       </h3>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                         <BookOpen className="h-4 w-4" />
                         <span>
-                          {course.chapters?.length || 0} {course.chapters?.length === 1 ? "فصل" : "فصول"}
+                          {t("courses.chapterCount", { count: course.chapters?.length || 0 })}
                           {course.quizzes && course.quizzes.length > 0 && (
-                            <span className="mr-2">، {course.quizzes.length} {course.quizzes.length === 1 ? "اختبار" : "اختبارات"}</span>
+                            <span className="mr-2">{t("courses.quizCount", { count: course.quizzes.length })}</span>
                           )}
                         </span>
                       </div>
@@ -431,7 +440,7 @@ export default function HomePage() {
                           router.push(courseUrl);
                         }}
                       >
-                        {course.progress === 100 ? "عرض الكورس" : "عرض الكورس"}
+                        {t("courses.viewCourse")}
                       </Button>
                     </div>
                   </motion.div>
@@ -458,8 +467,8 @@ export default function HomePage() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl font-bold mb-4">المتجر</h2>
-            <p className="text-muted-foreground">منتجات رقمية يمكن شراؤها من رصيدك</p>
+            <h2 className="text-3xl font-bold mb-4">{t("store.title")}</h2>
+            <p className="text-muted-foreground">{t("store.subtitle")}</p>
           </motion.div>
 
           <motion.div
@@ -488,9 +497,9 @@ export default function HomePage() {
                   <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                     <ShoppingBag className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">لا توجد منتجات متاحة حالياً</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t("store.emptyTitle")}</h3>
                   <p className="text-muted-foreground">
-                    سيتم إضافة منتجات جديدة قريباً.
+                    {t("store.emptyDescription")}
                   </p>
                 </div>
               </div>
@@ -507,7 +516,7 @@ export default function HomePage() {
                   <div className="relative w-full aspect-video">
                     <Image
                       src={product.imageUrl || "/placeholder.png"}
-                      alt={product.title}
+                      alt={localizedField(product as unknown as Record<string, unknown>, "title", locale)}
                       fill
                       className="object-cover rounded-t-xl"
                     />
@@ -515,11 +524,11 @@ export default function HomePage() {
                   </div>
                   <div className="p-4">
                     <h3 className="text-lg font-semibold mb-2 line-clamp-2">
-                      {product.title}
+                      {localizedField(product as unknown as Record<string, unknown>, "title", locale)}
                     </h3>
-                    {product.description && (
+                    {localizedField(product as unknown as Record<string, unknown>, "description", locale) && (
                       <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {product.description}
+                        {localizedField(product as unknown as Record<string, unknown>, "description", locale)}
                       </p>
                     )}
                     <p className="text-lg font-semibold text-primary mb-4">
@@ -535,7 +544,7 @@ export default function HomePage() {
                         router.push("/dashboard/store");
                       }}
                     >
-                      {session?.user ? "عرض في المتجر" : "سجل الدخول للشراء"}
+                      {session?.user ? t("store.viewInStore") : t("store.signInToBuy")}
                     </Button>
                   </div>
                 </motion.div>
@@ -555,13 +564,17 @@ export default function HomePage() {
             viewport={{ once: true }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">آراء الطلاب</h2>
-            <p className="text-muted-foreground">ماذا يقول طلابنا عن تجربتهم معنا</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("testimonials.title")}</h2>
+            <p className="text-muted-foreground">{t("testimonials.subtitle")}</p>
           </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {homepage.testimonials.map((testimonial, index) => (
+            {homepage.testimonials.map((testimonial, index) => {
+              const name = localizedText(testimonial.name, locale);
+              const grade = localizedText(testimonial.grade, locale);
+              const quote = localizedText(testimonial.testimonial, locale);
+              return (
               <motion.div
-                key={`${testimonial.name}-${index}`}
+                key={`${name}-${index}`}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -572,19 +585,19 @@ export default function HomePage() {
                   <div className="relative h-12 w-12 rounded-full overflow-hidden">
                     <Image
                       src={testimonial.avatarUrl || "/male.png"}
-                      alt={testimonial.name}
+                      alt={name}
                       fill
                       className="object-cover"
                       unoptimized={(testimonial.avatarUrl || "/male.png").startsWith("/")}
                     />
                   </div>
                   <div className="mr-4">
-                    <h4 className="font-semibold">{testimonial.name}</h4>
-                    <p className="text-sm text-muted-foreground">{testimonial.grade}</p>
+                    <h4 className="font-semibold">{name}</h4>
+                    <p className="text-sm text-muted-foreground">{grade}</p>
                   </div>
                 </div>
                 <p className="text-muted-foreground">
-                  &ldquo;{testimonial.testimonial}&rdquo;
+                  &ldquo;{quote}&rdquo;
                 </p>
                 <div className="flex mt-4">
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -592,7 +605,8 @@ export default function HomePage() {
                   ))}
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -613,8 +627,8 @@ export default function HomePage() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl font-bold mb-4">مميزات المنصة</h2>
-            <p className="text-muted-foreground">اكتشف ما يجعل منصتنا مميزة</p>
+            <h2 className="text-3xl font-bold mb-4">{t("features.title")}</h2>
+            <p className="text-muted-foreground">{t("features.subtitle")}</p>
           </motion.div>
 
           <motion.div
@@ -624,9 +638,12 @@ export default function HomePage() {
             transition={{ duration: 0.8, delay: 0.4 }}
             className="grid grid-cols-1 md:grid-cols-3 gap-8"
           >
-            {homepage.features.map((feature, index) => (
+            {homepage.features.map((feature, index) => {
+              const title = localizedText(feature.title, locale);
+              const description = localizedText(feature.description, locale);
+              return (
               <motion.div
-                key={`${feature.title}-${index}`}
+                key={`${title}-${index}`}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-100px" }}
@@ -636,10 +653,11 @@ export default function HomePage() {
                 <div className="w-12 h-12 bg-brand/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <HomepageFeatureIconComponent icon={feature.icon} />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
+                <h3 className="text-xl font-semibold mb-2">{title}</h3>
+                <p className="text-muted-foreground">{description}</p>
               </motion.div>
-            ))}
+              );
+            })}
           </motion.div>
         </motion.div>
       </section>
@@ -654,13 +672,13 @@ export default function HomePage() {
             viewport={{ once: true }}
             className="text-center"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">ابدأ رحلة التعلم معنا</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("cta.title")}</h2>
             <p className="text-muted-foreground mb-8">
-              انضم إلينا اليوم وابدأ رحلة النجاح
+              {t("cta.subtitle")}
             </p>
             <Button size="lg" asChild className="bg-brand hover:bg-brand/90 text-white">
               <Link href="/sign-up">
-                سجل الآن <ArrowRight className="mr-2 h-4 w-4" />
+                {t("cta.button")} <ArrowRight className="mr-2 h-4 w-4" />
               </Link>
             </Button>
           </motion.div>
@@ -668,4 +686,4 @@ export default function HomePage() {
       </section>
       </div>
   );
-} 
+}

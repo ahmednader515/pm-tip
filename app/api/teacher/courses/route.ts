@@ -15,7 +15,7 @@ export async function GET() {
 
     const courses = await db.course.findMany({
       where: { userId: session.user.id },
-      select: { id: true, title: true, imageUrl: true, isPublished: true },
+      select: { id: true, title: true, titleEn: true, imageUrl: true, isPublished: true },
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json(courses);

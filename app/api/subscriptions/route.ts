@@ -22,6 +22,7 @@ export async function GET() {
               select: {
                 id: true,
                 title: true,
+                titleEn: true,
                 imageUrl: true,
                 isPublished: true,
               },
@@ -69,6 +70,7 @@ export async function GET() {
     const list = subscriptions.map((s) => ({
       id: s.id,
       title: s.title,
+      titleEn: s.titleEn,
       type: s.type,
       price: s.price,
       teacherName: s.user.fullName,

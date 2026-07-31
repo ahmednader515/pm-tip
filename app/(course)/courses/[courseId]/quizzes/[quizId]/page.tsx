@@ -4,33 +4,60 @@ import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { ArrowLeft, Clock, AlertCircle, Save, Eye, Languages } from "lucide-react";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { parseQuizOptions } from "@/lib/utils";
 import {
     type RevealedFeedback,
     revealedFeedbackToState,
 } from "@/lib/quiz-draft";
+import { useLocale, useTranslations } from "next-intl";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 interface Question {
     id: string;
     text: string;
+    textEn?: string | null;
     type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER";
     options?: string[] | string;
+    optionsEn?: string[] | string | null;
+    explanationEn?: string | null;
     points: number;
     imageUrl?: string;
+}
+
+function resolveQuestionOptions(question: Question, locale: Locale): string[] {
+    const arOpts = Array.isArray(question.options)
+        ? question.options
+        : parseQuizOptions(question.options || null);
+    if (locale !== "en") return arOpts;
+    const enOpts = Array.isArray(question.optionsEn)
+        ? question.optionsEn
+        : parseQuizOptions(question.optionsEn || null);
+    if (!enOpts.length) return arOpts;
+    return arOpts.map((opt, i) => (enOpts[i]?.trim() ? enOpts[i] : opt));
+}
+
+function resolveQuestionText(question: Question, locale: Locale): string {
+    return localizedField(question as unknown as Record<string, unknown>, "text", locale);
 }
 
 interface Quiz {
     id: string;
     title: string;
+    titleEn?: string | null;
     description: string;
+    descriptionEn?: string | null;
     timer?: number; // Timer in minutes
     maxAttempts: number;
     currentAttempt?: number;
@@ -68,6 +95,10 @@ export default function QuizPage({
 }) {
     const router = useRouter();
     const { courseId, quizId } = use(params);
+    const t = useTranslations("quiz");
+    const tCommon = useTranslations("common");
+    const tCourse = useTranslations("course");
+    const locale = useLocale() as Locale;
     const [quiz, setQuiz] = useState<Quiz | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -222,16 +253,16 @@ export default function QuizPage({
             } else {
                 const errorText = await response.text();
                 if (errorText.includes("Maximum attempts reached")) {
-                    toast.error("لقد استنفذت جميع المحاولات المسموحة لهذا الاختبار");
+                    toast.error(t("noAttempts"));
                     // Set flag to redirect to result page when no attempts remaining
                     setRedirectToResult(true);
                 } else {
-                    toast.error("حدث خطأ أثناء تحميل الاختبار");
+                    toast.error(t("loadError"));
                 }
             }
         } catch (error) {
             console.error("Error fetching quiz:", error);
-            toast.error("حدث خطأ أثناء تحميل الاختبار");
+            toast.error(t("loadError"));
         } finally {
             setLoading(false);
         }
@@ -269,10 +300,10 @@ export default function QuizPage({
             });
             if (res.ok) {
                 setLastSavedAt(new Date());
-                if (showToast) toast.success("تم حفظ الإجابات");
+                if (showToast) toast.success(t("answersSaved"));
             }
         } catch {
-            if (showToast) toast.error("فشل حفظ الإجابات");
+            if (showToast) toast.error(t("saveFailed"));
         } finally {
             setSavingDraft(false);
         }
@@ -311,11 +342,25 @@ export default function QuizPage({
             );
             if (res.ok) {
                 const data = await res.json();
+                const preferEn = locale === "en";
+                const rawTf = data.correctAnswerRaw ?? data.correctAnswer;
+                const correctAnswer =
+                    data.type === "TRUE_FALSE"
+                        ? rawTf === "true"
+                            ? tCommon("true")
+                            : tCommon("false")
+                        : preferEn && data.correctAnswerEn?.trim()
+                            ? data.correctAnswerEn
+                            : data.correctAnswer;
+                const explanation =
+                    preferEn && data.explanationEn?.trim()
+                        ? data.explanationEn
+                        : data.explanation ?? null;
                 const nextFeedback: RevealedFeedback = {
                     ...revealedFeedbackRef.current,
                     [questionId]: {
-                        correctAnswer: data.correctAnswer,
-                        explanation: data.explanation ?? null,
+                        correctAnswer,
+                        explanation,
                     },
                 };
                 applyRevealedFeedback(nextFeedback);
@@ -326,10 +371,10 @@ export default function QuizPage({
                     nextFeedback
                 );
             } else {
-                toast.error("تعذر تحميل الإجابة الصحيحة");
+                toast.error(t("correctAnswerLoadFailed"));
             }
         } catch {
-            toast.error("تعذر تحميل الإجابة الصحيحة");
+            toast.error(t("correctAnswerLoadFailed"));
         } finally {
             setLoadingCorrectId(null);
         }
@@ -348,7 +393,7 @@ export default function QuizPage({
                 }
             });
             if (texts.length === 0) {
-                toast.info("لا يوجد نص للترجمة");
+                toast.info(t("nothingToTranslate"));
                 setTranslating(false);
                 return;
             }
@@ -371,34 +416,24 @@ export default function QuizPage({
                 return { text, options };
             });
             setTranslatedQuiz({ questions });
-            toast.success("تمت الترجمة إلى الإنجليزية");
+            toast.success(t("translatedToEnglish"));
         } catch {
-            toast.error("فشل في الترجمة. حاول مرة أخرى لاحقاً.");
+            toast.error(t("translateFailed"));
         } finally {
             setTranslating(false);
         }
     };
 
-    const handleMultipleChoiceToggle = (questionId: string, optionText: string) => {
+    const handleMultipleChoiceSelect = (questionId: string, optionText: string) => {
         if (isQuestionLocked(questionId)) return;
-        setAnswers(prev => {
-            const existing = prev.find(a => a.questionId === questionId);
-            let current: string[] = [];
-            if (existing?.answer) {
-                try {
-                    const parsed = JSON.parse(existing.answer);
-                    current = Array.isArray(parsed) ? parsed.filter((x: unknown) => typeof x === "string") : [existing.answer];
-                } catch {
-                    current = [existing.answer];
-                }
-            }
-            const set = new Set(current);
-            if (set.has(optionText)) set.delete(optionText);
-            else set.add(optionText);
-            const nextArr = Array.from(set);
-            const nextAnswer = JSON.stringify(nextArr);
+        // Store as JSON array for grading compatibility (supports multi-correct keys)
+        const nextAnswer = JSON.stringify(optionText ? [optionText] : []);
+        setAnswers((prev) => {
+            const existing = prev.find((a) => a.questionId === questionId);
             const next = existing
-                ? prev.map(a => a.questionId === questionId ? { ...a, answer: nextAnswer } : a)
+                ? prev.map((a) =>
+                      a.questionId === questionId ? { ...a, answer: nextAnswer } : a
+                  )
                 : [...prev, { questionId, answer: nextAnswer }];
             if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current);
             saveDraftTimeoutRef.current = setTimeout(
@@ -407,6 +442,18 @@ export default function QuizPage({
             );
             return next;
         });
+    };
+
+    const getMultipleChoiceSelected = (questionId: string): string => {
+        const raw = answers.find((a) => a.questionId === questionId)?.answer ?? "";
+        if (!raw.trim()) return "";
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && typeof parsed[0] === "string") return parsed[0];
+        } catch {
+            /* plain string fallback */
+        }
+        return raw;
     };
 
     const handleSubmit = async () => {
@@ -424,15 +471,15 @@ export default function QuizPage({
 
             if (response.ok) {
                 const result = await response.json();
-                toast.success("تم إرسال الاختبار بنجاح!");
+                toast.success(t("submitSuccess"));
                 router.push(`/courses/${courseId}/quizzes/${quizId}/result`);
             } else {
                 const error = await response.text();
-                toast.error(error || "حدث خطأ أثناء إرسال الاختبار");
+                toast.error(error || t("submitError"));
             }
         } catch (error) {
             console.error("Error submitting quiz:", error);
-            toast.error("حدث خطأ أثناء إرسال الاختبار");
+            toast.error(t("submitError"));
         } finally {
             setSubmitting(false);
         }
@@ -483,7 +530,7 @@ export default function QuizPage({
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                    <p className="text-muted-foreground">جاري تحميل النتيجة...</p>
+                    <p className="text-muted-foreground">{t("loadingResult")}</p>
                 </div>
             </div>
         );
@@ -493,8 +540,8 @@ export default function QuizPage({
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold mb-4">الاختبار غير موجود</h1>
-                    <Button onClick={() => router.back()}>العودة</Button>
+                    <h1 className="text-2xl font-bold mb-4">{t("quizNotFound")}</h1>
+                    <Button onClick={() => router.back()}>{t("goBack")}</Button>
                 </div>
             </div>
         );
@@ -516,7 +563,7 @@ export default function QuizPage({
                                 className="flex items-center gap-2"
                             >
                                 <ArrowLeft className="h-4 w-4" />
-                                رجوع
+                                {tCommon("back")}
                             </Button>
                             <Button
                                 variant="outline"
@@ -526,8 +573,19 @@ export default function QuizPage({
                                 className="flex items-center gap-2"
                             >
                                 <Save className="h-4 w-4" />
-                                {savingDraft ? "جاري الحفظ..." : "حفظ الإجابات"}
+                                {savingDraft ? t("saving") : t("saveAnswers")}
                             </Button>
+                            {locale === "en" &&
+                                quiz?.questions.some((q) => {
+                                    if (!q.textEn?.trim()) return true;
+                                    if (q.type === "MULTIPLE_CHOICE") {
+                                        const enOpts = Array.isArray(q.optionsEn)
+                                            ? q.optionsEn
+                                            : parseQuizOptions(q.optionsEn || null);
+                                        return !enOpts.some((o) => o?.trim());
+                                    }
+                                    return false;
+                                }) && (
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -536,11 +594,12 @@ export default function QuizPage({
                                 className="flex items-center gap-2"
                             >
                                 <Languages className="h-4 w-4" />
-                                {translatedQuiz ? "عرض العربية" : translating ? "جاري الترجمة..." : "ترجمة إلى الإنجليزية"}
+                                {translatedQuiz ? t("showArabic") : translating ? t("translating") : t("translateToEnglish")}
                             </Button>
+                            )}
                             {lastSavedAt && !savingDraft && (
                                 <span className="text-xs text-muted-foreground">
-                                    آخر حفظ: {lastSavedAt.toLocaleTimeString("ar-SA")}
+                                    {t("lastSaved", { time: lastSavedAt.toLocaleTimeString(locale === "ar" ? "ar-SA" : "en-US") })}
                                 </span>
                             )}
                         </div>
@@ -552,11 +611,11 @@ export default function QuizPage({
                                 </div>
                             )}
                             <Badge variant="secondary">
-                                السؤال {currentQuestion + 1} من {quiz.questions.length}
+                                {t("questionOf", { current: currentQuestion + 1, total: quiz.questions.length })}
                             </Badge>
                             {quiz.maxAttempts > 1 && (
                                 <Badge variant="outline">
-                                    المحاولة {quiz.currentAttempt || 1} من {quiz.maxAttempts}
+                                    {t("attemptOf", { current: quiz.currentAttempt || 1, max: quiz.maxAttempts })}
                                 </Badge>
                             )}
                         </div>
@@ -565,8 +624,8 @@ export default function QuizPage({
                     {/* Quiz Info */}
                     <Card>
                         <CardHeader>
-                            <CardTitle className="auto-dir">{quiz.title}</CardTitle>
-                            <CardDescription className="auto-dir">{quiz.description}</CardDescription>
+                            <CardTitle className="auto-dir">{localizedField(quiz as unknown as Record<string, unknown>, "title", locale)}</CardTitle>
+                            <CardDescription className="auto-dir">{localizedField(quiz as unknown as Record<string, unknown>, "description", locale)}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="w-full bg-muted rounded-full h-2">
@@ -579,21 +638,25 @@ export default function QuizPage({
                     </Card>
 
                     {/* Question */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                السؤال {currentQuestion + 1}
-                                <Badge variant="outline">{currentQuestionData.points} درجة</Badge>
+                    <Card className="rounded-xl border shadow-sm">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                                {t("questionN", { n: currentQuestion + 1 })}
+                                <Badge variant="outline">{t("pointsBadge", { points: currentQuestionData.points })}</Badge>
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <CardContent className="space-y-4">
                             {revealedCorrect[currentQuestionData.id] != null && (
                                 <div className="rounded-md bg-muted/80 px-3 py-1.5 text-sm text-muted-foreground inline-flex items-center gap-1">
-                                    تم تحديد السؤال — لا يمكن تعديل الإجابة
+                                    {t("lockedAnswer")}
                                 </div>
                             )}
-                            <div className="text-lg auto-dir">
-                                {translatedQuiz?.questions[currentQuestion]?.text ?? currentQuestionData.text}
+                            <div className="text-base md:text-lg font-medium auto-dir leading-relaxed">
+                                {(() => {
+                                    const stored = resolveQuestionText(currentQuestionData, locale);
+                                    if (locale === "en" && currentQuestionData.textEn?.trim()) return stored;
+                                    return translatedQuiz?.questions[currentQuestion]?.text ?? stored;
+                                })()}
                             </div>
 
                             {/* Question Image */}
@@ -601,80 +664,94 @@ export default function QuizPage({
                                 <div className="flex justify-center">
                                     <img 
                                         src={currentQuestionData.imageUrl} 
-                                        alt="Question" 
+                                        alt={t("questionImageAlt")} 
                                         className="max-w-full h-auto max-h-96 rounded-lg border shadow-sm"
                                     />
                                 </div>
                             )}
 
-                            {currentQuestionData.type === "MULTIPLE_CHOICE" && (
-                                <div className={`space-y-3 ${revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}`}>
-                                    {(() => {
-                                        const opts = translatedQuiz?.questions[currentQuestion]?.options ??
-                                            (Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null));
-                                        const origOpts = Array.isArray(currentQuestionData.options) ? currentQuestionData.options : parseQuizOptions(currentQuestionData.options || null);
-                                        const isLocked = revealedCorrect[currentQuestionData.id] != null;
-                                        return opts.map((option: string, index: number) => {
-                                            const origOption = origOpts[index] ?? option;
-                                            const raw = answers.find(a => a.questionId === currentQuestionData.id)?.answer ?? "";
-                                            let selected = false;
-                                            try {
-                                                const parsed = JSON.parse(raw);
-                                                selected = Array.isArray(parsed) && parsed.includes(origOption);
-                                            } catch {
-                                                selected = raw === origOption;
+                            {currentQuestionData.type === "MULTIPLE_CHOICE" && (() => {
+                                const hasStoredEn =
+                                    locale === "en" &&
+                                    (Array.isArray(currentQuestionData.optionsEn)
+                                        ? currentQuestionData.optionsEn.some((o) => o?.trim())
+                                        : !!parseQuizOptions(currentQuestionData.optionsEn || null).length);
+                                const opts = hasStoredEn
+                                    ? resolveQuestionOptions(currentQuestionData, locale)
+                                    : (translatedQuiz?.questions[currentQuestion]?.options ??
+                                        resolveQuestionOptions(currentQuestionData, locale));
+                                const origOpts = Array.isArray(currentQuestionData.options)
+                                    ? currentQuestionData.options
+                                    : parseQuizOptions(currentQuestionData.options || null);
+                                const isLocked = revealedCorrect[currentQuestionData.id] != null;
+                                const selectedOrig = getMultipleChoiceSelected(currentQuestionData.id);
+                                return (
+                                    <div className={isLocked ? "pointer-events-none opacity-80" : ""}>
+                                        <Select
+                                            value={selectedOrig || undefined}
+                                            onValueChange={(value) =>
+                                                handleMultipleChoiceSelect(currentQuestionData.id, value)
                                             }
-                                            return (
-                                                <div key={index} className="flex items-center space-x-2">
-                                                    <Checkbox
-                                                        id={`option-${currentQuestionData.id}-${index}`}
-                                                        checked={selected}
-                                                        disabled={isLocked}
-                                                        onCheckedChange={() => handleMultipleChoiceToggle(currentQuestionData.id, origOption)}
-                                                    />
-                                                    <Label htmlFor={`option-${currentQuestionData.id}-${index}`} className="cursor-pointer flex-1 auto-dir">{option}</Label>
-                                                </div>
-                                            );
-                                        });
-                                    })()}
-                                </div>
-                            )}
+                                            disabled={isLocked}
+                                        >
+                                            <SelectTrigger
+                                                className="h-12 w-full rounded-xl border-border bg-background text-base auto-dir"
+                                                dir={locale === "ar" ? "rtl" : "ltr"}
+                                            >
+                                                <SelectValue placeholder={t("choosePlaceholder")} />
+                                            </SelectTrigger>
+                                            <SelectContent dir={locale === "ar" ? "rtl" : "ltr"}>
+                                                {opts.map((option: string, index: number) => {
+                                                    const origOption = origOpts[index] ?? option;
+                                                    return (
+                                                        <SelectItem
+                                                            key={`${currentQuestionData.id}-${index}`}
+                                                            value={origOption}
+                                                            className="auto-dir text-base py-2.5"
+                                                        >
+                                                            {option}
+                                                        </SelectItem>
+                                                    );
+                                                })}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                );
+                            })()}
 
                             {currentQuestionData.type === "TRUE_FALSE" && (
                                 <div className={revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}>
-                                    <RadioGroup
-                                        value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
+                                    <Select
+                                        value={answers.find((a) => a.questionId === currentQuestionData.id)?.answer || undefined}
                                         onValueChange={(value) => handleAnswerChange(currentQuestionData.id, value)}
                                         disabled={revealedCorrect[currentQuestionData.id] != null}
                                     >
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem
-                                                value="true"
-                                                id={`true-${currentQuestionData.id}`}
-                                                disabled={revealedCorrect[currentQuestionData.id] != null}
-                                            />
-                                            <Label htmlFor={`true-${currentQuestionData.id}`}>صح</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem
-                                                value="false"
-                                                id={`false-${currentQuestionData.id}`}
-                                                disabled={revealedCorrect[currentQuestionData.id] != null}
-                                            />
-                                            <Label htmlFor={`false-${currentQuestionData.id}`}>خطأ</Label>
-                                        </div>
-                                    </RadioGroup>
+                                        <SelectTrigger
+                                            className="h-12 w-full rounded-xl border-border bg-background text-base auto-dir"
+                                            dir={locale === "ar" ? "rtl" : "ltr"}
+                                        >
+                                            <SelectValue placeholder={t("choosePlaceholder")} />
+                                        </SelectTrigger>
+                                        <SelectContent dir={locale === "ar" ? "rtl" : "ltr"}>
+                                            <SelectItem value="true" className="text-base py-2.5">
+                                                {tCommon("true")}
+                                            </SelectItem>
+                                            <SelectItem value="false" className="text-base py-2.5">
+                                                {tCommon("false")}
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             )}
 
                             {currentQuestionData.type === "SHORT_ANSWER" && (
                                 <Textarea
-                                    placeholder="اكتب إجابتك هنا..."
+                                    placeholder={t("writeAnswer")}
                                     value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
                                     onChange={(e) => handleAnswerChange(currentQuestionData.id, e.target.value)}
                                     rows={4}
                                     disabled={revealedCorrect[currentQuestionData.id] != null}
-                                    className={revealedCorrect[currentQuestionData.id] != null ? "opacity-80" : ""}
+                                    className={`rounded-xl ${revealedCorrect[currentQuestionData.id] != null ? "opacity-80" : ""}`}
                                 />
                             )}
 
@@ -691,14 +768,14 @@ export default function QuizPage({
                                         >
                                             <Eye className="h-4 w-4" />
                                             {loadingCorrectId === currentQuestionData.id
-                                                ? "جاري التحميل..."
-                                                : "عرض الإجابة الصحيحة"}
+                                                ? tCommon("loading")
+                                                : t("showCorrectAnswer")}
                                         </Button>
                                     ) : (
                                         <div className="rounded-md bg-muted p-3 text-sm space-y-2">
                                             <div>
                                                 <span className="font-medium text-muted-foreground">
-                                                    {translatedQuiz ? "Correct answer: " : "الإجابة الصحيحة: "}
+                                                    {t("correctAnswerLabel")}
                                                 </span>
                                                 <span>
                                                     {translatedQuiz &&
@@ -711,7 +788,7 @@ export default function QuizPage({
                                                 revealedExplanationTranslated[currentQuestionData.id]) && (
                                                 <div className="pt-2 border-t border-muted-foreground/20">
                                                     <span className="font-medium text-muted-foreground block mb-1">
-                                                        {translatedQuiz ? "Explanation: " : "الشرح: "}
+                                                        {t("explanationLabel")}
                                                     </span>
                                                     <span>
                                                         {translatedQuiz &&
@@ -729,33 +806,31 @@ export default function QuizPage({
                     </Card>
 
                     {/* Navigation */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        {currentQuestion === quiz.questions.length - 1 ? (
+                            <Button
+                                onClick={handleSubmit}
+                                disabled={submitting}
+                                className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90"
+                            >
+                                {submitting ? t("submitting") : t("finishQuiz")}
+                            </Button>
+                        ) : (
+                            <Button
+                                onClick={() => goToQuestion(currentQuestion + 1)}
+                                className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90"
+                            >
+                                {tCommon("next")}
+                            </Button>
+                        )}
                         <Button
                             variant="outline"
                             onClick={() => goToQuestion(Math.max(0, currentQuestion - 1))}
                             disabled={currentQuestion === 0}
+                            className="flex-1 h-11 rounded-xl border-primary text-primary hover:bg-primary/10"
                         >
-                            السابق
+                            {tCommon("previous")}
                         </Button>
-
-                        <div className="flex items-center gap-2">
-                            {currentQuestion === quiz.questions.length - 1 ? (
-                                <Button
-                                    onClick={handleSubmit}
-                                    disabled={submitting}
-                                    className="bg-primary hover:bg-primary/90"
-                                >
-                                    {submitting ? "جاري الإرسال..." : "إنهاء الاختبار"}
-                                </Button>
-                            ) : (
-                                <Button
-                                    onClick={() => goToQuestion(currentQuestion + 1)}
-                                    className="bg-primary hover:bg-primary/90"
-                                >
-                                    التالي
-                                </Button>
-                            )}
-                        </div>
                     </div>
 
                     {/* Warning */}
@@ -763,12 +838,12 @@ export default function QuizPage({
                         <CardContent className="pt-6">
                             <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
                                 <AlertCircle className="h-5 w-5" />
-                                <span className="font-medium">تنبيه</span>
+                                <span className="font-medium">{t("notice")}</span>
                             </div>
                             <p className="text-amber-700 dark:text-amber-200 mt-2">
-                                {quiz.maxAttempts > 1 
-                                    ? `تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. يمكنك عرض الإجابة الصحيحة والشرح بعد الإجابة على كل سؤال. يمكنك إعادة الاختبار ${quiz.maxAttempts - (quiz.currentAttempt || 1)} مرات أخرى.`
-                                    : "تأكد من إجابة جميع الأسئلة قبل إنهاء الاختبار. يمكنك عرض الإجابة الصحيحة والشرح بعد الإجابة على كل سؤال."
+                                {quiz.maxAttempts > 1
+                                    ? t("finishHintWithRetries", { count: quiz.maxAttempts - (quiz.currentAttempt || 1) })
+                                    : t("finishHint")
                                 }
                             </p>
                         </CardContent>
@@ -782,7 +857,7 @@ export default function QuizPage({
                             disabled={!navigation?.previousContentId}
                             className="flex items-center gap-2"
                         >
-                            المحتوى السابق
+                            {tCourse("previousContent")}
                         </Button>
 
                         <Button
@@ -790,7 +865,7 @@ export default function QuizPage({
                             disabled={!navigation?.nextContentId}
                             className="flex items-center gap-2"
                         >
-                            المحتوى التالي
+                            {tCourse("nextContent")}
                         </Button>
                     </div>
                 </div>

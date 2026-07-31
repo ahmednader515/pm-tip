@@ -7,13 +7,19 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, BookOpen, Loader2, Play, Award } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 type QuizItem = {
     quizId: string;
     courseId: string;
     courseTitle: string;
+    courseTitleEn?: string | null;
     title: string;
+    titleEn?: string | null;
     description: string | null;
+    descriptionEn?: string | null;
     maxAttempts: number;
     attemptCount: number;
     hasDraft: boolean;
@@ -23,6 +29,8 @@ type QuizItem = {
 export default function StudentQuizzesPage() {
     const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const t = useTranslations("dashboard.student.quizzes");
+    const locale = useLocale() as Locale;
 
     useEffect(() => {
         fetchQuizzes();
@@ -35,10 +43,10 @@ export default function StudentQuizzesPage() {
                 const data = await res.json();
                 setQuizzes(data);
             } else {
-                toast.error("فشل تحميل الاختبارات");
+                toast.error(t("loadFailed"));
             }
         } catch {
-            toast.error("فشل تحميل الاختبارات");
+            toast.error(t("loadFailed"));
         } finally {
             setLoading(false);
         }
@@ -57,10 +65,10 @@ export default function StudentQuizzesPage() {
             <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                     <FileText className="h-7 w-7" />
-                    الاختبارات
+                    {t("title")}
                 </h1>
                 <p className="text-muted-foreground mt-1">
-                    اختبارات الكورسات التي لديك فيها صلاحية. يمكنك البدء أو متابعة اختبار محفوظ.
+                    {t("subtitle")}
                 </p>
             </div>
 
@@ -69,10 +77,10 @@ export default function StudentQuizzesPage() {
                     <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                         <FileText className="h-12 w-12 text-muted-foreground mb-4" />
                         <p className="text-muted-foreground">
-                            لا توجد اختبارات متاحة في الكورسات المشتراة أو المجانية.
+                            {t("empty")}
                         </p>
                         <Button asChild className="mt-4" variant="outline">
-                            <Link href="/dashboard/search">استعراض الكورسات</Link>
+                            <Link href="/dashboard/search">{t("browseCourses")}</Link>
                         </Button>
                     </CardContent>
                 </Card>
@@ -81,41 +89,44 @@ export default function StudentQuizzesPage() {
                     {quizzes.map((q) => {
                         const canTakeMore = q.attemptCount < q.maxAttempts;
                         const href = `/courses/${q.courseId}/quizzes/${q.quizId}`;
+                        const record = q as unknown as Record<string, unknown>;
                         return (
                             <Card key={q.quizId} className="flex flex-col">
                                 <CardHeader className="pb-2">
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                         <BookOpen className="h-4 w-4" />
-                                        {q.courseTitle}
+                                        {localizedField({ title: q.courseTitle, titleEn: q.courseTitleEn }, "title", locale)}
                                     </div>
-                                    <CardTitle className="text-lg">{q.title}</CardTitle>
-                                    {q.description && (
+                                    <CardTitle className="text-lg">
+                                        {localizedField(record, "title", locale)}
+                                    </CardTitle>
+                                    {(q.description || q.descriptionEn) && (
                                         <CardDescription className="line-clamp-2">
-                                            {q.description}
+                                            {localizedField(record, "description", locale)}
                                         </CardDescription>
                                     )}
                                 </CardHeader>
                                 <CardContent className="mt-auto pt-0 flex flex-col gap-3">
                                     <div className="flex flex-wrap gap-2">
                                         <Badge variant="secondary">
-                                            المحاولة {q.attemptCount} من {q.maxAttempts}
+                                            {t("attemptOf", { current: q.attemptCount, max: q.maxAttempts })}
                                         </Badge>
                                         {q.hasDraft && (
-                                            <Badge variant="outline">تم حفظ إجابات</Badge>
+                                            <Badge variant="outline">{t("draftSaved")}</Badge>
                                         )}
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <Button asChild disabled={!canTakeMore} className="w-full" size="sm">
                                             <Link href={href} className="flex items-center justify-center gap-2">
                                                 <Play className="h-4 w-4" />
-                                                {q.hasDraft ? "متابعة الاختبار" : canTakeMore ? "بدء الاختبار" : "استنفدت المحاولات"}
+                                                {q.hasDraft ? t("continueQuiz") : canTakeMore ? t("startQuiz") : t("noAttemptsLeft")}
                                             </Link>
                                         </Button>
                                         {q.maxAttempts > 1 && q.attemptCount >= 1 && (
                                             <Button asChild variant="outline" className="w-full" size="sm">
                                                 <Link href={`/courses/${q.courseId}/quizzes/${q.quizId}/result`} className="flex items-center justify-center gap-2">
                                                     <Award className="h-4 w-4" />
-                                                    عرض النتيجة
+                                                    {t("viewResult")}
                                                 </Link>
                                             </Button>
                                         )}

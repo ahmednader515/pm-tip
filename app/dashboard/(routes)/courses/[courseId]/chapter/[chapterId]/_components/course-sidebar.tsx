@@ -5,6 +5,9 @@ import { cn } from "@/lib/utils";
 import { CheckCircle, Lock } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 interface CourseSidebarProps {
   course: Course & {
@@ -18,17 +21,19 @@ export const CourseSidebar = ({
   progress,
 }: CourseSidebarProps) => {
   const pathname = usePathname();
+  const t = useTranslations("course");
+  const locale = useLocale() as Locale;
 
   return (
     <div className="h-full border-r flex flex-col overflow-y-auto shadow-sm">
       <div className="p-8 flex flex-col border-b">
         <h1 className="font-semibold">
-          {course.title}
+          {localizedField(course as unknown as Record<string, unknown>, "title", locale)}
         </h1>
         <div className="mt-4">
           <div className="flex items-center gap-x-2">
             <div className="text-sm font-medium">
-              التقدم: {progress}%
+              {t("progressPercent", { percent: progress })}
             </div>
           </div>
         </div>
@@ -62,7 +67,7 @@ export const CourseSidebar = ({
                   />
                 )}
                 <span>
-                  {chapter.title}
+                  {localizedField(chapter as unknown as Record<string, unknown>, "title", locale)}
                 </span>
               </div>
             </Link>
@@ -73,4 +78,4 @@ export const CourseSidebar = ({
   );
 };
 
-export default CourseSidebar; 
+export default CourseSidebar;

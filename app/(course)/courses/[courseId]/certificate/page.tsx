@@ -1,15 +1,19 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Award, Download } from "lucide-react";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 type CertificateStatus = {
   courseId: string;
   courseTitle: string;
+  courseTitleEn?: string | null;
   certificateEnabled: boolean;
   totalChapters: number;
   completedChapters: number;
@@ -24,6 +28,9 @@ export default function CourseCertificatePage({
 }: {
   params: Promise<{ courseId: string }>;
 }) {
+  const t = useTranslations("course");
+  const tCommon = useTranslations("common");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const { courseId } = use(params);
   const [loading, setLoading] = useState(true);
@@ -91,7 +98,7 @@ export default function CourseCertificatePage({
   };
 
   if (loading) {
-    return <div className="p-6">جاري التحميل...</div>;
+return <div className="p-6">{tCommon("loading")}</div>;
   }
 
   if (!status || !status.certificateEnabled) {
@@ -99,10 +106,10 @@ export default function CourseCertificatePage({
       <div className="p-6">
         <Card>
           <CardHeader>
-            <CardTitle>الشهادة غير متاحة</CardTitle>
+<CardTitle>{t("certificateUnavailable")}</CardTitle>
           </CardHeader>
           <CardContent>
-            هذا الكورس لا يحتوي على شهادة.
+{t("certificateNotEnabled")}
           </CardContent>
         </Card>
       </div>
@@ -115,15 +122,17 @@ export default function CourseCertificatePage({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Award className="h-5 w-5" />
-            شهادة إتمام الكورس
+{t("courseCertificateTitle")}
           </CardTitle>
-          <CardDescription>{status.courseTitle}</CardDescription>
+          <CardDescription>
+            {localizedField(status as unknown as Record<string, unknown>, "courseTitle", locale)}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm text-muted-foreground">
-            إكمال الفصول: {status.completedChapters}/{status.totalChapters}
+{t("chaptersProgress", { completed: status.completedChapters, total: status.totalChapters })}
             {" • "}
-            إكمال الاختبارات: {status.completedQuizzes}/{status.totalQuizzes}
+{t("quizzesProgress", { completed: status.completedQuizzes, total: status.totalQuizzes })}
           </div>
 
           {status.eligible ? (
@@ -131,7 +140,7 @@ export default function CourseCertificatePage({
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="اكتب الاسم كما سيظهر على الشهادة"
+placeholder={t("nameOnCertificate")}
                 dir="auto"
               />
               <Button
@@ -141,12 +150,12 @@ export default function CourseCertificatePage({
                 className="w-full gap-2 bg-brand text-white hover:bg-brand/90"
               >
                 <Download className="h-5 w-5" />
-                {downloading ? "جاري تجهيز الشهادة..." : "تحميل الشهادة"}
+{downloading ? t("preparingCertificate") : t("downloadCertificate")}
               </Button>
             </div>
           ) : (
             <div className="text-sm">
-              أكمل جميع الفصول والاختبارات أولاً للحصول على الشهادة.
+{t("completeFirst")}
             </div>
           )}
         </CardContent>

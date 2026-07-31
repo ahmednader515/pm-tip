@@ -67,7 +67,9 @@ export async function POST(req: NextRequest) {
             data: {
                 userId,
                 title: data.title!,
+                titleEn: data.titleEn ?? null,
                 description: data.description ?? null,
+                descriptionEn: data.descriptionEn ?? null,
                 imageUrl: data.imageUrl ?? null,
                 price: data.price!,
                 downloadUrl: data.downloadUrl!,

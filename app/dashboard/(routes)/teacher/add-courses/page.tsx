@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,9 @@ interface Course {
 }
 
 const TeacherAddCoursesPage = () => {
+    const t = useTranslations("dashboard.teacher.pages");
+    const tCommon = useTranslations("common");
+    
     const [users, setUsers] = useState<User[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
     const [ownedCourses, setOwnedCourses] = useState<Course[]>([]);
@@ -98,7 +103,7 @@ const TeacherAddCoursesPage = () => {
 
     const handleAddCourse = async () => {
         if (!selectedUser || !selectedCourse) {
-            toast.error("يرجى اختيار الطالب والكورس");
+            toast.error(t("selectStudentAndCourse"));
             return;
         }
 
@@ -113,18 +118,18 @@ const TeacherAddCoursesPage = () => {
             });
 
             if (response.ok) {
-                toast.success("تم إضافة الكورس للطالب بنجاح");
+                toast.success(t("addCourseSuccess"));
                 setIsDialogOpen(false);
                 setSelectedUser(null);
                 setSelectedCourse("");
                 fetchUsers(); // Refresh the list
             } else {
                 const error = await response.json();
-                toast.error(error.message || "حدث خطأ أثناء إضافة الكورس");
+                toast.error(error.message || {t("addCourseError")});
             }
         } catch (error) {
             console.error("Error adding course:", error);
-            toast.error("حدث خطأ أثناء إضافة الكورس");
+            toast.error(t("addCourseError"));
         } finally {
             setIsAddingCourse(false);
         }
@@ -132,7 +137,7 @@ const TeacherAddCoursesPage = () => {
 
     const handleDeleteCourse = async () => {
         if (!selectedUser || !selectedCourse) {
-            toast.error("يرجى اختيار الطالب والكورس");
+            toast.error(t("selectStudentAndCourse"));
             return;
         }
 
@@ -144,18 +149,18 @@ const TeacherAddCoursesPage = () => {
                 body: JSON.stringify({ courseId: selectedCourse })
             });
             if (res.ok) {
-                toast.success("تم حذف الكورس من الطالب بنجاح");
+                toast.success(t("removeCourseSuccess"));
                 setIsDialogOpen(false);
                 setSelectedCourse("");
                 setSelectedUser(null);
                 fetchUsers();
             } else {
                 const data = await res.json().catch(() => ({} as any));
-                toast.error((data as any).error || "حدث خطأ أثناء حذف الكورس");
+                toast.error((data as any).error || {t("removeCourseError")});
             }
         } catch (error) {
             console.error("Error deleting course:", error);
-            toast.error("حدث خطأ أثناء حذف الكورس");
+            toast.error(t("removeCourseError"));
         } finally {
             setIsDeletingCourse(false);
         }
@@ -169,7 +174,7 @@ const TeacherAddCoursesPage = () => {
     if (loading) {
         return (
             <div className="p-6">
-                <div className="text-center">جاري التحميل...</div>
+                <div className="text-center">{tCommon("loading")}</div>
             </div>
         );
     }
@@ -177,18 +182,16 @@ const TeacherAddCoursesPage = () => {
     return (
         <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                    اضافة و حذف الكورسات للطلاب
-                </h1>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t("addCoursesTitle")}</h1>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>قائمة الطلاب</CardTitle>
+                    <CardTitle>{tCommon("studentsList")}</CardTitle>
                     <div className="flex items-center space-x-2">
                         <Search className="h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="البحث بالاسم أو رقم الهاتف..."
+                            placeholder={tCommon("searchByNameOrPhone")}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="max-w-sm"
@@ -199,11 +202,11 @@ const TeacherAddCoursesPage = () => {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="text-right">الاسم</TableHead>
-                                <TableHead className="text-right">رقم الهاتف</TableHead>
-                                <TableHead className="text-right">الدور</TableHead>
-                                <TableHead className="text-right">الكورسات المشتراة</TableHead>
-                                <TableHead className="text-right">الإجراءات</TableHead>
+                                <TableHead className="text-right">{tCommon("fullName")}</TableHead>
+                                <TableHead className="text-right">{tCommon("phoneNumber")}</TableHead>
+                                <TableHead className="text-right">{tCommon("role")}</TableHead>
+                                <TableHead className="text-right">{tCommon("purchasedCourses")}</TableHead>
+                                <TableHead className="text-right">{tCommon("actions")}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -214,9 +217,7 @@ const TeacherAddCoursesPage = () => {
                                     </TableCell>
                                     <TableCell>{user.phoneNumber}</TableCell>
                                     <TableCell>
-                                        <Badge variant="secondary">
-                                            طالب
-                                        </Badge>
+                                        <Badge variant="secondary">{tCommon("roleStudent")}</Badge>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="outline">{user._count?.purchases ?? 0}</Badge>
@@ -233,9 +234,7 @@ const TeacherAddCoursesPage = () => {
                                                     setIsDialogOpen(true);
                                                 }}
                                             >
-                                                <Plus className="h-4 w-4" />
-                                                إضافة كورس
-                                            </Button>
+                                                <Plus className="h-4 w-4" />{t("addCourse")}</Button>
                                             <Button 
                                                 size="sm" 
                                                 variant="destructive"
@@ -245,9 +244,7 @@ const TeacherAddCoursesPage = () => {
                                                     setSelectedCourse("");
                                                     setIsDialogOpen(true);
                                                 }}
-                                            >
-                                                حذف الكورس
-                                            </Button>
+                                            >{t("removeCourse")}</Button>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -261,7 +258,7 @@ const TeacherAddCoursesPage = () => {
                 <Card>
                     <CardContent className="p-6">
                         <div className="text-center text-muted-foreground">
-                            لا توجد طلاب متاحين
+                            {t("noStudentsAvailable")}
                         </div>
                     </CardContent>
                 </Card>
@@ -283,27 +280,27 @@ const TeacherAddCoursesPage = () => {
                     <DialogHeader>
                         <DialogTitle>
                             {dialogMode === "add" ? (
-                                <>إضافة كورس لـ {selectedUser?.fullName}</>
+                                <>{t("addCourseFor", { name: selectedUser?.fullName })}</>
                             ) : (
-                                <>حذف كورس من {selectedUser?.fullName}</>
+                                <>{t("removeCourseFrom", { name: selectedUser?.fullName })}</>
                             )}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">اختر الكورس</label>
+                            <label className="text-sm font-medium">{tCommon("selectCourse")}</label>
                             <Select value={selectedCourse} onValueChange={setSelectedCourse}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="اختر كورس..." />
+                                    <SelectValue placeholder={tCommon("selectCoursePlaceholder")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {(dialogMode === "delete" ? ownedCourses : courses).map((course) => (
                                         <SelectItem key={course.id} value={course.id}>
                                             <div className="flex items-center justify-between w-full">
                                                 <span>{course.title}</span>
-                                                {typeof course.price === "number" && (
+                                                {tCommon("amountEgp", { amount: typeof course.price === "number" && (
                                                     <Badge variant="outline" className="mr-2">
-                                                        {course.price} جنيه
+                                                        {course.price })}
                                                     </Badge>
                                                 )}
                                             </div>
@@ -321,15 +318,13 @@ const TeacherAddCoursesPage = () => {
                                     setSelectedUser(null);
                                     setDialogMode("add");
                                 }}
-                            >
-                                إلغاء
-                            </Button>
+                            >{tCommon("cancel")}</Button>
                             {dialogMode === "add" ? (
                                 <Button 
                                     onClick={handleAddCourse}
                                     disabled={!selectedCourse || isAddingCourse}
                                 >
-                                    {isAddingCourse ? "جاري الإضافة..." : "إضافة الكورس"}
+                                    {isAddingCourse ? tCommon("adding") : t("addCourseBtn")}
                                 </Button>
                             ) : (
                                 <Button 
@@ -337,7 +332,7 @@ const TeacherAddCoursesPage = () => {
                                     onClick={handleDeleteCourse}
                                     disabled={!selectedCourse || isDeletingCourse}
                                 >
-                                    {isDeletingCourse ? "جاري الحذف..." : "حذف الكورس"}
+                                    {isDeletingCourse ? tCommon("deleting") : t("removeCourse")}
                                 </Button>
                             )}
                         </div>

@@ -69,15 +69,39 @@ export async function PATCH(
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
+        const allowed: Record<string, unknown> = {};
+        const keys = [
+            "title",
+            "titleEn",
+            "description",
+            "descriptionEn",
+            "imageUrl",
+            "price",
+            "isPublished",
+            "certificateEnabled",
+        ] as const;
+        for (const key of keys) {
+            if (values[key] !== undefined) {
+                if (key === "titleEn" || key === "descriptionEn") {
+                    const v = values[key];
+                    allowed[key] = v == null || String(v).trim() === "" ? null : String(v);
+                } else {
+                    allowed[key] = values[key];
+                }
+            }
+        }
+
+        if (Object.keys(allowed).length === 0) {
+            return new NextResponse("No fields to update", { status: 400 });
+        }
+
         const whereClause = user?.role === "ADMIN"
             ? { id: resolvedParams.courseId }
             : { id: resolvedParams.courseId, userId };
 
         const course = await db.course.update({
             where: whereClause,
-            data: {
-                ...values,
-            }
+            data: allowed,
         });
 
         return NextResponse.json(course);

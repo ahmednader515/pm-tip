@@ -9,9 +9,11 @@ import {
 
 function toQuestionBankSettings(row: {
   displayName: string;
+  displayNameEn?: string | null;
 }): QuestionBankSettingsContent {
   return {
     displayName: row.displayName.trim() || DEFAULT_QUESTION_BANK_SETTINGS.displayName,
+    displayNameEn: (row.displayNameEn ?? "").trim(),
   };
 }
 
@@ -32,6 +34,7 @@ export async function getQuestionBankSettings(): Promise<QuestionBankSettingsCon
       data: {
         id: QUESTION_BANK_SETTINGS_ID,
         displayName: DEFAULT_QUESTION_BANK_SETTINGS.displayName,
+        displayNameEn: null,
       },
     });
     return DEFAULT_QUESTION_BANK_SETTINGS;
@@ -48,6 +51,8 @@ export async function updateQuestionBankSettings(
   const current = await getQuestionBankSettings();
   const merged: QuestionBankSettingsContent = {
     displayName: partial.displayName ?? current.displayName,
+    displayNameEn:
+      partial.displayNameEn !== undefined ? partial.displayNameEn : current.displayNameEn,
   };
 
   const row = await db.questionBankSettings.upsert({
@@ -55,9 +60,11 @@ export async function updateQuestionBankSettings(
     create: {
       id: QUESTION_BANK_SETTINGS_ID,
       displayName: merged.displayName,
+      displayNameEn: merged.displayNameEn || null,
     },
     update: {
       displayName: merged.displayName,
+      displayNameEn: merged.displayNameEn || null,
     },
   });
 

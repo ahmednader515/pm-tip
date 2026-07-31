@@ -19,7 +19,7 @@ export async function GET() {
         courses: {
           include: {
             course: {
-              select: { id: true, title: true, imageUrl: true },
+              select: { id: true, title: true, titleEn: true, imageUrl: true },
             },
           },
         },
@@ -45,8 +45,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { title, type, price, courseIds } = body as {
+    const { title, titleEn, type, price, courseIds } = body as {
       title?: string;
+      titleEn?: string | null;
       type?: string;
       price?: number;
       courseIds?: string[];
@@ -78,6 +79,10 @@ export async function POST(req: NextRequest) {
       data: {
         userId: teacherId,
         title: title.trim(),
+        titleEn:
+          titleEn == null || String(titleEn).trim() === ""
+            ? null
+            : String(titleEn).trim(),
         type,
         price: priceNum,
         courses: {
@@ -88,7 +93,7 @@ export async function POST(req: NextRequest) {
         courses: {
           include: {
             course: {
-              select: { id: true, title: true, imageUrl: true },
+              select: { id: true, title: true, titleEn: true, imageUrl: true },
             },
           },
         },

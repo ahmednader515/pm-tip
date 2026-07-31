@@ -5,11 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 export const SearchInput = () => {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [searchValue, setSearchValue] = useState("");
+    const t = useTranslations("dashboard.student.search");
 
     useEffect(() => {
         const title = searchParams.get("title");
@@ -35,7 +37,7 @@ export const SearchInput = () => {
         <form onSubmit={onSubmit} className="flex items-center gap-x-2">
             <Input
                 name="title"
-                placeholder="ابحث عن كورسات..."
+                placeholder={t("searchPlaceholderShort")}
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 className="h-10"
@@ -45,4 +47,4 @@ export const SearchInput = () => {
             </Button>
         </form>
     );
-}; 
+};

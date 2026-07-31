@@ -165,14 +165,42 @@ export async function PATCH(
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
+        const allowed: Record<string, unknown> = {};
+        const keys = [
+            "title",
+            "titleEn",
+            "description",
+            "descriptionEn",
+            "videoUrl",
+            "videoType",
+            "youtubeVideoId",
+            "documentUrl",
+            "documentName",
+            "position",
+            "isPublished",
+            "isFree",
+        ] as const;
+        for (const key of keys) {
+            if (values[key] !== undefined) {
+                if (key === "titleEn" || key === "descriptionEn") {
+                    const v = values[key];
+                    allowed[key] = v == null || String(v).trim() === "" ? null : String(v);
+                } else {
+                    allowed[key] = values[key];
+                }
+            }
+        }
+
+        if (Object.keys(allowed).length === 0) {
+            return new NextResponse("No fields to update", { status: 400 });
+        }
+
         const chapter = await db.chapter.update({
             where: {
                 id: resolvedParams.chapterId,
                 courseId: resolvedParams.courseId,
             },
-            data: {
-                ...values,
-            }
+            data: allowed,
         });
 
         return NextResponse.json(chapter);

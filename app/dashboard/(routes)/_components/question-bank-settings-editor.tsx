@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Loader2, MessageCircle, Save } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { QuestionBankSettingsContent } from "@/lib/question-bank-settings";
 import { DEFAULT_QUESTION_BANK_DISPLAY_NAME } from "@/lib/question-bank-settings";
 
@@ -17,6 +18,9 @@ export function QuestionBankSettingsEditor({
   apiBase: "/api/admin/question-bank/settings" | "/api/teacher/question-bank/settings";
 }) {
   const router = useRouter();
+  const tCommon = useTranslations("common");
+  const tEditor = useTranslations("editor");
+  const t = useTranslations("editor.questionBank");
   const [settings, setSettings] = useState<QuestionBankSettingsContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -26,17 +30,21 @@ export function QuestionBankSettingsEditor({
       try {
         const res = await fetch(apiBase);
         if (res.ok) {
-          setSettings(await res.json());
+          const data = await res.json();
+          setSettings({
+            displayName: data.displayName ?? "",
+            displayNameEn: data.displayNameEn ?? "",
+          });
         } else {
-          toast.error("فشل تحميل إعدادات بنك الأسئلة");
+          toast.error(t("loadFailed"));
         }
       } catch {
-        toast.error("فشل تحميل إعدادات بنك الأسئلة");
+        toast.error(t("loadFailed"));
       } finally {
         setLoading(false);
       }
     })();
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   const handleSave = async () => {
     if (!settings) return;
@@ -49,14 +57,14 @@ export function QuestionBankSettingsEditor({
       });
       if (res.ok) {
         setSettings(await res.json());
-        toast.success("تم حفظ إعدادات بنك الأسئلة");
+        toast.success(t("saveSuccess"));
         router.refresh();
       } else {
         const err = await res.text();
-        toast.error(err || "فشل الحفظ");
+        toast.error(err || t("saveFailed"));
       }
     } catch {
-      toast.error("فشل الحفظ");
+      toast.error(t("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -73,7 +81,7 @@ export function QuestionBankSettingsEditor({
   if (!settings) {
     return (
       <p className="text-muted-foreground text-center py-12">
-        تعذر تحميل الإعدادات
+        {t("loadError")}
       </p>
     );
   }
@@ -83,20 +91,22 @@ export function QuestionBankSettingsEditor({
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <MessageCircle className="h-7 w-7" />
-          إعدادات بنك الأسئلة
+          {t("pageTitle")}
         </h1>
         <p className="text-muted-foreground mt-1">
-          حدّد الاسم الذي يظهر في قائمة الطالب وفي واجهة المحادثة.
+          {t("subtitle")}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">اسم بنك الأسئلة</CardTitle>
+          <CardTitle className="text-lg">{t("displayNameTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="displayName">الاسم المعروض</Label>
+            <Label htmlFor="displayName">
+              {tCommon("arabicLabel")} — {t("displayName")}
+            </Label>
             <Input
               id="displayName"
               value={settings.displayName}
@@ -108,9 +118,25 @@ export function QuestionBankSettingsEditor({
               className="h-11"
             />
             <p className="text-xs text-muted-foreground">
-              يُستخدم في رابط القائمة الجانبية، عنوان الصفحة، واسم المساعد في
-              المحادثة.
+              {t("displayNameHint")}
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="displayNameEn">
+              {tCommon("englishLabel")} — {tEditor("displayNameEn")}
+            </Label>
+            <Input
+              id="displayNameEn"
+              dir="ltr"
+              value={settings.displayNameEn}
+              onChange={(e) =>
+                setSettings({ ...settings, displayNameEn: e.target.value })
+              }
+              placeholder="Question Bank"
+              maxLength={100}
+              className="h-11"
+            />
           </div>
 
           <Button
@@ -119,11 +145,11 @@ export function QuestionBankSettingsEditor({
             className="bg-brand hover:bg-brand/90"
           >
             {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin ml-2" />
+              <Loader2 className="h-4 w-4 animate-spin rtl:ml-2 ltr:mr-2" />
             ) : (
-              <Save className="h-4 w-4 ml-2" />
+              <Save className="h-4 w-4 rtl:ml-2 ltr:mr-2" />
             )}
-            حفظ
+            {t("save")}
           </Button>
         </CardContent>
       </Card>

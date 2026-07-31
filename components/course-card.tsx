@@ -4,6 +4,7 @@ import { formatPrice } from "@/lib/format";
 import Link from "next/link";
 import Image from "next/image";
 import { Progress } from "@/components/ui/progress";
+import { useTranslations } from "next-intl";
 
 interface CourseCardProps {
     id: string;
@@ -29,6 +30,8 @@ export const CourseCard = ({
     progress,
     user,
 }: CourseCardProps) => {
+    const t = useTranslations("common");
+
     return (
         <Link href={`/courses/${id}`}>
             <div className="group hover:shadow-sm transition overflow-hidden border rounded-lg p-3 h-full">
@@ -45,9 +48,9 @@ export const CourseCard = ({
                         {title}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        {chaptersLength} {chaptersLength === 1 ? "فصل" : "فصول"}
+                        {chaptersLength} {chaptersLength === 1 ? t("chapter") : t("chapters")}
                         {quizzesLength > 0 && (
-                            <span>، {quizzesLength} {quizzesLength === 1 ? "اختبار" : "اختبارات"}</span>
+                            <span>, {quizzesLength} {quizzesLength === 1 ? t("quiz") : t("quizzes")}</span>
                         )}
                     </p>
                     {progress !== null ? (
@@ -76,4 +79,4 @@ export const CourseCard = ({
             </div>
         </Link>
     );
-}; 
+};

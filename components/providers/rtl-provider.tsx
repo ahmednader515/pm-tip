@@ -1,38 +1,34 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect } from "react";
+import { useLocale } from "next-intl";
+import type { Locale } from "@/i18n/config";
+import { getDir } from "@/i18n/config";
 
 interface RTLContextType {
   isRTL: boolean;
-  setIsRTL: (isRTL: boolean) => void;
+  locale: Locale;
 }
 
 const RTLContext = createContext<RTLContextType>({
   isRTL: true,
-  setIsRTL: () => {},
+  locale: "ar",
 });
 
 export const useRTL = () => useContext(RTLContext);
 
 export const RTLProvider = ({ children }: { children: React.ReactNode }) => {
-  const [isRTL, setIsRTL] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  const locale = useLocale() as Locale;
+  const isRTL = locale === "ar";
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    
-    // Update document direction when isRTL changes
-    document.documentElement.dir = isRTL ? "rtl" : "ltr";
-    document.documentElement.lang = isRTL ? "ar" : "en";
-  }, [isRTL, mounted]);
+    document.documentElement.dir = getDir(locale);
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   return (
-    <RTLContext.Provider value={{ isRTL, setIsRTL }}>
+    <RTLContext.Provider value={{ isRTL, locale }}>
       {children}
     </RTLContext.Provider>
   );
-}; 
+};

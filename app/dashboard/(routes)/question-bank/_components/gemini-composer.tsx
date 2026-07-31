@@ -10,6 +10,7 @@ import {
 } from "@/lib/chat/multimodal";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 type GeminiComposerProps = {
   disabled?: boolean;
@@ -24,6 +25,7 @@ export function GeminiComposer({
   onSend,
   onStop,
 }: GeminiComposerProps) {
+  const t = useTranslations("dashboard.student.questionBank");
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,7 +61,7 @@ export function GeminiComposer({
       const next = await Promise.all(files.map(fileToChatAttachment));
       setAttachments((prev) => [...prev, ...next].slice(0, 5));
     } catch {
-      toast.error("فشل رفع الملف");
+      toast.error(t("uploadFailed"));
     } finally {
       e.target.value = "";
     }
@@ -117,7 +119,7 @@ export function GeminiComposer({
               className="h-9 w-9 shrink-0"
               disabled={disabled || streaming}
               onClick={() => fileInputRef.current?.click()}
-              title="إرفاق صورة أو PDF"
+              title={t("attachTitle")}
             >
               <Paperclip className="h-5 w-5" />
             </Button>
@@ -131,7 +133,7 @@ export function GeminiComposer({
                 e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
               }}
               onKeyDown={handleKeyDown}
-              placeholder="اسأل ChatGPT..."
+              placeholder={t("placeholder")}
               disabled={disabled || streaming}
               rows={1}
               className={cn(
@@ -147,7 +149,7 @@ export function GeminiComposer({
                 variant="secondary"
                 className="h-9 w-9 shrink-0"
                 onClick={onStop}
-                title="إيقاف"
+                title={t("stop")}
               >
                 <Square className="h-4 w-4" />
               </Button>
@@ -157,7 +159,7 @@ export function GeminiComposer({
                 size="icon"
                 className="h-9 w-9 shrink-0 bg-brand hover:bg-brand/90"
                 disabled={!canSend}
-                title="إرسال"
+                title={t("send")}
               >
                 <Send className="h-4 w-4" />
               </Button>
@@ -165,7 +167,7 @@ export function GeminiComposer({
           </div>
 
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            قد يرتكب ChatGPT أخطاء. تحقق من المعلومات المهمة.
+            {t("disclaimer")}
           </p>
         </form>
       </div>

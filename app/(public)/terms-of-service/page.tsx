@@ -1,109 +1,107 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { LegalPage } from "@/components/legal-page";
 
-export const metadata: Metadata = {
-  title: "الشروط والأحكام | منصة PM TIPS",
-  description: "الشروط والأحكام لاستخدام منصة PM TIPS التعليمية",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("legal.terms");
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+  };
+}
 
-export default function TermsOfServicePage() {
+export default async function TermsOfServicePage() {
+  const t = await getTranslations("legal.terms");
+  const tLegal = await getTranslations("legal");
+
   return (
-    <LegalPage title="الشروط والأحكام" lastUpdated="24 يونيو 2026">
+    <LegalPage title={t("title")} lastUpdated={tLegal("lastUpdatedDate")}>
       <section>
-        <h2>1. القبول بالشروط</h2>
-        <p>
-          باستخدامكم منصة PM TIPS التابعة لـ Mordesu Studio، فإنكم توافقون على
-          الالتزام بهذه الشروط والأحكام. إذا لم توافقوا على أي بند، يرجى عدم
-          استخدام المنصة.
-        </p>
+        <h2>{t("s1.heading")}</h2>
+        <p>{t("s1.p1")}</p>
       </section>
 
       <section>
-        <h2>2. وصف الخدمة</h2>
-        <p>
-          توفر المنصة محتوى تعليمي رقمي يشمل كورسات، فيديوهات، اختبارات، ومواد
-          تعليمية أخرى. نحتفظ بحق تعديل أو إيقاف أي جزء من الخدمة في أي وقت.
-        </p>
+        <h2>{t("s2.heading")}</h2>
+        <p>{t("s2.p1")}</p>
       </section>
 
       <section>
-        <h2>3. إنشاء الحساب</h2>
+        <h2>{t("s3.heading")}</h2>
         <ul>
-          <li>يجب تقديم معلومات صحيحة ودقيقة عند التسجيل.</li>
-          <li>أنتم مسؤولون عن الحفاظ على سرية بيانات تسجيل الدخول.</li>
-          <li>يُحظر مشاركة الحساب مع أطراف أخرى أو استخدام حساب واحد على أجهزة متعددة بشكل مخالف لسياسة المنصة.</li>
-          <li>نحتفظ بحق تعليق أو إنهاء الحسابات المخالفة لهذه الشروط.</li>
+          <li>{t("s3.item1")}</li>
+          <li>{t("s3.item2")}</li>
+          <li>{t("s3.item3")}</li>
+          <li>{t("s3.item4")}</li>
         </ul>
       </section>
 
       <section>
-        <h2>4. المدفوعات والأسعار</h2>
+        <h2>{t("s4.heading")}</h2>
         <ul>
-          <li>جميع الأسعار معروضة بالعملة المحلية ما لم يُذكر خلاف ذلك.</li>
-          <li>يُمنح الوصول إلى المحتوى بعد تأكيد الدفع بنجاح.</li>
-          <li>تخضع عمليات الاسترداد لـ <a href="/refund-policy">سياسة الاسترداد</a>.</li>
+          <li>{t("s4.item1")}</li>
+          <li>{t("s4.item2")}</li>
+          <li>
+            {t.rich("s4.item3", {
+              refundLink: (chunks) => (
+                <Link href="/refund-policy">{chunks}</Link>
+              ),
+            })}
+          </li>
         </ul>
       </section>
 
       <section>
-        <h2>5. حقوق الملكية الفكرية</h2>
-        <p>
-          جميع المحتويات على المنصة (فيديوهات، نصوص، صور، اختبارات) محمية بحقوق
-          الملكية الفكرية. يُحظر نسخ أو توزيع أو إعادة بيع أو مشاركة المحتوى
-          بأي وسيلة دون إذن كتابي مسبق.
-        </p>
+        <h2>{t("s5.heading")}</h2>
+        <p>{t("s5.p1")}</p>
       </section>
 
       <section>
-        <h2>6. سلوك المستخدم</h2>
-        <p>يُحظر على المستخدمين:</p>
+        <h2>{t("s6.heading")}</h2>
+        <p>{t("s6.intro")}</p>
         <ul>
-          <li>محاولة اختراق المنصة أو الإضرار بأنظمتها.</li>
-          <li>تحميل أو نشر محتوى ضار أو غير قانوني.</li>
-          <li>التلاعب بنتائج الاختبارات أو أنظمة التقييم.</li>
-          <li>استخدام المنصة لأغراض تجارية غير مصرح بها.</li>
+          <li>{t("s6.item1")}</li>
+          <li>{t("s6.item2")}</li>
+          <li>{t("s6.item3")}</li>
+          <li>{t("s6.item4")}</li>
         </ul>
       </section>
 
       <section>
-        <h2>7. إخلاء المسؤولية</h2>
+        <h2>{t("s7.heading")}</h2>
+        <p>{t("s7.p1")}</p>
+      </section>
+
+      <section>
+        <h2>{t("s8.heading")}</h2>
+        <p>{t("s8.p1")}</p>
+      </section>
+
+      <section>
+        <h2>{t("s9.heading")}</h2>
         <p>
-          يُقدَّم المحتوى التعليمي لأغراض التعلم والمساعدة الأكاديمية. لا نضمن
-          نتائج محددة في الامتحانات أو الدرجات. تُقدَّم الخدمة &quot;كما هي&quot;
-          دون ضمانات صريحة أو ضمنية.
+          {t.rich("s9.p1", {
+            privacyLink: (chunks) => (
+              <Link href="/privacy-policy">{chunks}</Link>
+            ),
+          })}
         </p>
       </section>
 
       <section>
-        <h2>8. تحديد المسؤولية</h2>
-        <p>
-          لن تكون Mordesu Studio أو منصة PM TIPS مسؤولة عن أي أضرار غير مباشرة
-          أو تبعية ناتجة عن استخدام المنصة، في الحدود التي يسمح بها القانون
-          المعمول به.
-        </p>
+        <h2>{t("s10.heading")}</h2>
+        <p>{t("s10.p1")}</p>
       </section>
 
       <section>
-        <h2>9. الخصوصية</h2>
+        <h2>{t("s11.heading")}</h2>
         <p>
-          يخضع جمع واستخدام بياناتكم لـ{" "}
-          <a href="/privacy-policy">سياسة الخصوصية</a>.
-        </p>
-      </section>
-
-      <section>
-        <h2>10. التعديلات</h2>
-        <p>
-          قد نقوم بتحديث هذه الشروط من وقت لآخر. استمراركم في استخدام المنصة بعد
-          التعديل يعني موافقتكم على الشروط المحدَّثة.
-        </p>
-      </section>
-
-      <section>
-        <h2>11. التواصل</h2>
-        <p>
-          لأي استفسارات حول هذه الشروط، يرجى زيارة صفحة{" "}
-          <a href="/contact">تواصل معنا</a>.
+          {t.rich("s11.p1", {
+            contactLink: (chunks) => (
+              <Link href="/contact">{chunks}</Link>
+            ),
+          })}
         </p>
       </section>
     </LegalPage>

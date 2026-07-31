@@ -1,17 +1,19 @@
+import { toLocaleText, type LocaleText } from "@/lib/localized";
+
 export const HOMEPAGE_SETTINGS_ID = "default";
 
 export type HomepageFeatureIcon = "star" | "users" | "award" | "book" | "bookopen";
 
 export type HomepageTestimonial = {
-    name: string;
-    grade: string;
-    testimonial: string;
+    name: LocaleText;
+    grade: LocaleText;
+    testimonial: LocaleText;
     avatarUrl?: string | null;
 };
 
 export type HomepageFeature = {
-    title: string;
-    description: string;
+    title: LocaleText;
+    description: LocaleText;
     icon: HomepageFeatureIcon;
 };
 
@@ -29,38 +31,50 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
     footerPhone: "01009560680",
     testimonials: [
         {
-            name: "عصام اسامة",
-            grade: "الصف الأول الثانوي",
-            testimonial: "تجربة رائعة مع منصة PM TIPS، المحتوى غني والشرح مبسط",
+            name: { ar: "عصام اسامة", en: "" },
+            grade: { ar: "الصف الأول الثانوي", en: "" },
+            testimonial: {
+                ar: "تجربة رائعة مع منصة PM TIPS، المحتوى غني والشرح مبسط",
+                en: "",
+            },
             avatarUrl: "/male.png",
         },
         {
-            name: "سيف طارق",
-            grade: "الصف الثاني الثانوي",
-            testimonial: "المنهج منظم جداً والشرح واضح، ساعدني في فهم المواد بشكل أفضل",
+            name: { ar: "سيف طارق", en: "" },
+            grade: { ar: "الصف الثاني الثانوي", en: "" },
+            testimonial: {
+                ar: "المنهج منظم جداً والشرح واضح، ساعدني في فهم المواد بشكل أفضل",
+                en: "",
+            },
             avatarUrl: "/male.png",
         },
         {
-            name: "عمر جمال",
-            grade: "الصف الأول الثانوي",
-            testimonial: "أفضل منصة تعليمية استخدمتها، المحتوى غني والشرح مبسط",
+            name: { ar: "عمر جمال", en: "" },
+            grade: { ar: "الصف الأول الثانوي", en: "" },
+            testimonial: {
+                ar: "أفضل منصة تعليمية استخدمتها، المحتوى غني والشرح مبسط",
+                en: "",
+            },
             avatarUrl: "/male.png",
         },
     ],
     features: [
         {
-            title: "جودة عالية",
-            description: "أفضل منصة متخصصة لكورسات جميع المواد",
+            title: { ar: "جودة عالية", en: "" },
+            description: { ar: "أفضل منصة متخصصة لكورسات جميع المواد", en: "" },
             icon: "star",
         },
         {
-            title: "مجتمع نشط",
-            description: "انضم إلى مجتمع من الطلاب النشطين والمتفوقين والأوائل",
+            title: { ar: "مجتمع نشط", en: "" },
+            description: {
+                ar: "انضم إلى مجتمع من الطلاب النشطين والمتفوقين والأوائل",
+                en: "",
+            },
             icon: "users",
         },
         {
-            title: "شهادات تقدير",
-            description: "احصل على شهادات تقدير عند إكمال الكورسات",
+            title: { ar: "شهادات تقدير", en: "" },
+            description: { ar: "احصل على شهادات تقدير عند إكمال الكورسات", en: "" },
             icon: "award",
         },
     ],
@@ -68,16 +82,20 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
 
 const FEATURE_ICONS: HomepageFeatureIcon[] = ["star", "users", "award", "book", "bookopen"];
 
+function hasLocaleText(value: LocaleText): boolean {
+    return Boolean(value.ar.trim() || value.en.trim());
+}
+
 function parseTestimonials(raw: unknown): HomepageTestimonial[] {
     if (!Array.isArray(raw)) return DEFAULT_HOMEPAGE_CONTENT.testimonials;
     const parsed = raw
         .map((item) => {
             if (!item || typeof item !== "object") return null;
             const t = item as Record<string, unknown>;
-            const name = String(t.name ?? "").trim();
-            const grade = String(t.grade ?? "").trim();
-            const testimonial = String(t.testimonial ?? "").trim();
-            if (!name || !testimonial) return null;
+            const name = toLocaleText(t.name);
+            const grade = toLocaleText(t.grade);
+            const testimonial = toLocaleText(t.testimonial);
+            if (!hasLocaleText(name) || !hasLocaleText(testimonial)) return null;
             return {
                 name,
                 grade,
@@ -98,13 +116,13 @@ function parseFeatures(raw: unknown): HomepageFeature[] {
         .map((item) => {
             if (!item || typeof item !== "object") return null;
             const f = item as Record<string, unknown>;
-            const title = String(f.title ?? "").trim();
-            const description = String(f.description ?? "").trim();
+            const title = toLocaleText(f.title);
+            const description = toLocaleText(f.description);
             const iconRaw = String(f.icon ?? "star").toLowerCase();
             const icon = FEATURE_ICONS.includes(iconRaw as HomepageFeatureIcon)
                 ? (iconRaw as HomepageFeatureIcon)
                 : "star";
-            if (!title || !description) return null;
+            if (!hasLocaleText(title) || !hasLocaleText(description)) return null;
             return { title, description, icon };
         })
         .filter((x): x is HomepageFeature => x !== null);

@@ -6,6 +6,7 @@ import { FileText, Pencil, Upload, X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FileUpload } from "@/components/file-upload";
 import toast from "react-hot-toast";
+import { useTranslations } from "next-intl";
 
 interface DocumentFormProps {
     initialData: {
@@ -21,6 +22,9 @@ export const DocumentForm = ({
     courseId,
     chapterId
 }: DocumentFormProps) => {
+    const tCommon = useTranslations("common");
+    const tCourse = useTranslations("course");
+    const t = useTranslations("dashboard.teacher.chapterEditor");
     const [isEditing, setIsEditing] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,11 +42,11 @@ export const DocumentForm = ({
                 const decodedFilename = decodeURIComponent(filename);
                 // Remove query parameters if any
                 const cleanFilename = decodedFilename.split('?')[0];
-                return cleanFilename || 'مستند الفصل';
+                return cleanFilename || t("documentLabel");
             }
-            return 'مستند الفصل';
+            return t("documentLabel");
         } catch {
-            return 'مستند الفصل';
+            return t("documentLabel");
         }
     };
 
@@ -83,12 +87,12 @@ export const DocumentForm = ({
                 throw new Error('Failed to upload document');
             }
 
-            toast.success("تم رفع المستند بنجاح");
+            toast.success(t("documentUploaded"));
             setIsEditing(false);
             router.refresh();
         } catch (error) {
             console.error("[CHAPTER_DOCUMENT]", error);
-            toast.error("حدث خطأ ما");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsSubmitting(false);
         }
@@ -105,11 +109,11 @@ export const DocumentForm = ({
                 throw new Error('Failed to delete document');
             }
 
-            toast.success("تم حذف المستند بنجاح");
+            toast.success(t("documentDeleted"));
             router.refresh();
         } catch (error) {
             console.error("[CHAPTER_DOCUMENT_DELETE]", error);
-            toast.error("حدث خطأ ما");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsSubmitting(false);
         }
@@ -122,14 +126,14 @@ export const DocumentForm = ({
     return (
         <div className="mt-6 border bg-card rounded-md p-4">
             <div className="font-medium flex items-center justify-between">
-                مستند الفصل
+                {t("documentLabel")}
                 <Button onClick={() => setIsEditing(!isEditing)} variant="ghost">
                     {isEditing ? (
-                        <>إلغاء</>
+                        <>{tCommon("cancel")}</>
                     ) : (
                         <>
                             <Pencil className="h-4 w-4 mr-2" />
-                            تعديل المستند
+                            {t("editDocumentAction")}
                         </>
                     )}
                 </Button>
@@ -144,7 +148,7 @@ export const DocumentForm = ({
                                 <p className="text-sm font-medium truncate">
                                     {initialData.documentName || getFilenameFromUrl(initialData.documentUrl || '')}
                                 </p>
-                                <p className="text-xs text-muted-foreground">مستند الفصل</p>
+                                <p className="text-xs text-muted-foreground">{t("documentLabel")}</p>
                             </div>
                             <div className="ml-auto flex items-center gap-2 flex-shrink-0">
                                 <Button
@@ -152,7 +156,7 @@ export const DocumentForm = ({
                                     size="sm"
                                     onClick={() => window.open(initialData.documentUrl!, '_blank')}
                                 >
-                                    عرض
+                                    {tCommon("view")}
                                 </Button>
                                 <Button
                                     variant="ghost"
@@ -165,7 +169,7 @@ export const DocumentForm = ({
                                     className="flex items-center gap-1"
                                 >
                                     <Download className="h-3 w-3" />
-                                    تحميل
+                                    {tCourse("download")}
                                 </Button>
                                 <Button
                                     variant="ghost"
@@ -183,7 +187,7 @@ export const DocumentForm = ({
                         </div>
                     ) : (
                         <p className="text-sm mt-2 text-muted-foreground italic">
-                            لا يوجد مستند مرفوع
+                            {t("noDocument")}
                         </p>
                     )}
                 </div>
@@ -200,7 +204,7 @@ export const DocumentForm = ({
                         }}
                     />
                     <div className="text-xs text-muted-foreground mt-4">
-                        أضف مستندات إضافية قد يحتاجها الطلاب لفهم الفصل بشكل أفضل.
+                        {t("documentsHint")}
                     </div>
                 </div>
             )}

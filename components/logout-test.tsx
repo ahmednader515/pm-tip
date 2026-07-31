@@ -3,9 +3,11 @@
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export const LogoutTest = () => {
   const { data: session, status } = useSession();
+  const t = useTranslations("nav");
 
   const handleLogout = () => {
     console.log("🔍 LogoutTest: Logging out user:", session?.user?.name);
@@ -35,8 +37,8 @@ export const LogoutTest = () => {
         className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors duration-200 ease-in-out"
       >
         <LogOut className="h-4 w-4 rtl:ml-2 ltr:mr-2"/>
-        تسجيل الخروج
+        {t("logout")}
       </Button>
     </div>
   );
-}; 
+};

@@ -5,10 +5,14 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { CheckCircle, Circle, Award } from "lucide-react";
 import axios from "axios";
 import { cn } from "@/lib/utils";
+import { useLocale, useTranslations } from "next-intl";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 interface Chapter {
   id: string;
   title: string;
+  titleEn?: string | null;
   isFree: boolean;
   userProgress: {
     isCompleted: boolean;
@@ -18,6 +22,7 @@ interface Chapter {
 interface CourseContent {
   id: string;
   title: string;
+  titleEn?: string | null;
   position: number;
   type: 'chapter' | 'quiz' | 'certificate';
   isFree?: boolean;
@@ -37,6 +42,7 @@ interface CourseSidebarProps {
   course?: {
     id: string;
     title: string;
+    titleEn?: string | null;
     chapters: Chapter[];
   };
 }
@@ -45,11 +51,14 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
   const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
+  const t = useTranslations("course");
+  const locale = useLocale() as Locale;
   const [courseContent, setCourseContent] = useState<CourseContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [courseTitle, setCourseTitle] = useState<string>("");
+  const [courseRecord, setCourseRecord] = useState<Record<string, unknown> | null>(null);
 
   const fetchCourseData = useCallback(async () => {
     try {
@@ -65,6 +74,7 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
       ]);
       setCourseContent(contentResponse.data);
       setCourseTitle(courseResponse.data.title);
+      setCourseRecord(courseResponse.data);
     } catch (error) {
       console.error("Error fetching data:", error);
       setError("Failed to load course data");
@@ -73,7 +83,6 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
     }
   }, [course?.id, params.courseId]);
 
-  // Refresh data when pathname changes (indicating navigation)
   useEffect(() => {
     fetchCourseData();
   }, [fetchCourseData, pathname]);
@@ -83,7 +92,6 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
   }, [fetchCourseData]);
 
   useEffect(() => {
-    // Update selected content based on current path
     const currentContentId = pathname?.split("/").pop();
     setSelectedContentId(currentContentId || null);
   }, [pathname]);
@@ -107,7 +115,7 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
     return (
       <div className="h-full border-r flex flex-col overflow-y-auto shadow-lg">
         <div className="p-8 flex flex-col border-b">
-          <h1 className="font-semibold">جاري تحميل الكورس</h1>
+          <h1 className="font-semibold">{t("loadingCourse")}</h1>
         </div>
         <div className="flex items-center justify-center h-full">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -120,7 +128,7 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
     return (
       <div className="h-full border-l flex flex-col overflow-y-auto shadow-lg w-64 md:w-80">
         <div className="p-8 flex flex-col border-b">
-          <h1 className="font-semibold">حدث خطأ</h1>
+          <h1 className="font-semibold">{t("errorOccurred")}</h1>
         </div>
         <div className="flex items-center justify-center h-full text-red-500">
           {error}
@@ -129,10 +137,16 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
     );
   }
 
+  const displayTitle = courseRecord
+    ? localizedField(courseRecord, "title", locale)
+    : course
+      ? localizedField(course as unknown as Record<string, unknown>, "title", locale)
+      : courseTitle;
+
   return (
     <div className="h-full border-l flex flex-col overflow-y-auto shadow-lg w-72 md:w-80">
       <div className="p-8 flex flex-col border-b">
-        <h1 className="font-semibold">{courseTitle || course?.title}</h1>
+        <h1 className="font-semibold">{displayTitle}</h1>
       </div>
       <div className="flex flex-col w-full">
         {courseContent.map((content) => {
@@ -163,17 +177,17 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
                 <Circle className="h-4 w-4" />
               )}
               <span className="rtl:text-right ltr:text-left flex-grow mr-1">
-                {content.title}
+                {localizedField(content as unknown as Record<string, unknown>, "title", locale)}
                 {content.type === 'quiz' && (
-                  <span className="ml-2 text-xs text-green-600">(اختبار)</span>
+                  <span className="ml-2 text-xs text-green-600">{t("quizLabel")}</span>
                 )}
                 {content.type === 'certificate' && (
-                  <span className="ml-2 text-xs text-brand">(شهادة)</span>
+                  <span className="ml-2 text-xs text-brand">{t("certificateLabel")}</span>
                 )}
               </span>
               {content.type === 'chapter' && content.isFree && (
                 <span className="ml-4 px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
-                  مجاني
+                  {t("free")}
                 </span>
               )}
             </div>
@@ -182,4 +196,4 @@ export const CourseSidebar = ({ course }: CourseSidebarProps) => {
       </div>
     </div>
   );
-}; 
+};

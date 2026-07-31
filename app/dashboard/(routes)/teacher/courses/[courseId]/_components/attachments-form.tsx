@@ -6,6 +6,7 @@ import { File, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import axios from "axios";
+import { useTranslations } from "next-intl";
 import { UploadButton } from "@/lib/uploadthing";
 
 interface AttachmentsFormProps {
@@ -24,6 +25,8 @@ export const AttachmentsForm = ({
     initialData,
     courseId
 }: AttachmentsFormProps) => {
+    const tCommon = useTranslations("common");
+    const t = useTranslations("dashboard.teacher.courseEditor");
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const router = useRouter();
 
@@ -31,10 +34,10 @@ export const AttachmentsForm = ({
         try {
             setIsDeleting(id);
             await axios.delete(`/api/courses/${courseId}/attachments/${id}`);
-            toast.success("تم حذف الملف");
+            toast.success(t("fileDeleted"));
             router.refresh();
         } catch {
-            toast.error("حدث خطأ");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsDeleting(null);
         }
@@ -46,7 +49,7 @@ export const AttachmentsForm = ({
                 <div className="flex items-center gap-x-2">
                     <File className="h-5 w-5" />
                     <h2 className="text-lg font-medium">
-                        الملفات والمرفقات
+                        {t("filesAndAttachments")}
                     </h2>
                 </div>
                 <UploadButton
@@ -58,22 +61,22 @@ export const AttachmentsForm = ({
                                     url: res[0].url,
                                     name: res[0].name
                                 });
-                                toast.success("تم رفع الملف");
+                                toast.success(t("fileUploaded"));
                                 router.refresh();
                             } catch {
-                                toast.error("حدث خطأ");
+                                toast.error(tCommon("errors.generic"));
                             }
                         }
                     }}
                     onUploadError={(error: Error) => {
-                        toast.error(`حدث خطأ: ${error.message}`);
+                        toast.error(t("uploadErrorWithMessage", { message: error.message }));
                     }}
                 />
             </div>
             {initialData.attachments.length === 0 && (
                 <div className="flex items-center justify-center h-60 bg-muted rounded-md mt-4">
                     <p className="text-sm text-muted-foreground">
-                        لا يوجد ملفات حاليا
+                        {t("noFilesCurrently")}
                     </p>
                 </div>
             )}

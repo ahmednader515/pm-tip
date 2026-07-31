@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { MessageCircle, Mail, Clock, MapPin } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { getCachedHomepageContent } from "@/lib/homepage-db";
 
-export const metadata: Metadata = {
-  title: "تواصل معنا | منصة PM TIPS",
-  description: "معلومات التواصل مع منصة PM TIPS التعليمية",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("legal.contact");
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+  };
+}
 
 function formatWhatsAppLink(phone: string) {
   const digits = phone.replace(/\D/g, "");
@@ -19,14 +23,15 @@ function formatWhatsAppLink(phone: string) {
 }
 
 export default async function ContactPage() {
+  const t = await getTranslations("legal.contact");
   const { footerPhone } = await getCachedHomepageContent();
   const whatsappUrl = formatWhatsAppLink(footerPhone);
 
   return (
     <div className="container mx-auto px-4 max-w-3xl">
-      <h1 className="text-3xl font-bold text-brand mb-2">تواصل معنا</h1>
+      <h1 className="text-3xl font-bold text-brand mb-2">{t("title")}</h1>
       <p className="text-muted-foreground mb-10">
-        نحن هنا لمساعدتكم. تواصلوا معنا عبر أي من القنوات التالية.
+        {t("subtitle")}
       </p>
 
       <div className="grid gap-6 sm:grid-cols-2">
@@ -40,9 +45,9 @@ export default async function ContactPage() {
             <MessageCircle className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="font-semibold text-lg mb-1">واتساب</h2>
+            <h2 className="font-semibold text-lg mb-1">{t("whatsapp.title")}</h2>
             <p className="text-muted-foreground text-sm mb-2">
-              للدعم الفني والاستفسارات العامة
+              {t("whatsapp.description")}
             </p>
             <p className="text-brand font-medium" dir="ltr">
               {footerPhone}
@@ -55,12 +60,12 @@ export default async function ContactPage() {
             <Mail className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="font-semibold text-lg mb-1">البريد الإلكتروني</h2>
+            <h2 className="font-semibold text-lg mb-1">{t("email.title")}</h2>
             <p className="text-muted-foreground text-sm mb-2">
-              للشكاوى والاقتراحات
+              {t("email.description")}
             </p>
             <p className="text-brand font-medium" dir="ltr">
-              support@pmtips.com
+              {t("email.address")}
             </p>
           </div>
         </div>
@@ -70,11 +75,11 @@ export default async function ContactPage() {
             <Clock className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="font-semibold text-lg mb-1">ساعات العمل</h2>
+            <h2 className="font-semibold text-lg mb-1">{t("hours.title")}</h2>
             <p className="text-muted-foreground text-sm">
-              السبت – الخميس: 10:00 ص – 10:00 م
+              {t("hours.weekdays")}
             </p>
-            <p className="text-muted-foreground text-sm">الجمعة: مغلق</p>
+            <p className="text-muted-foreground text-sm">{t("hours.friday")}</p>
           </div>
         </div>
 
@@ -83,33 +88,33 @@ export default async function ContactPage() {
             <MapPin className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="font-semibold text-lg mb-1">المنصة</h2>
+            <h2 className="font-semibold text-lg mb-1">{t("platform.title")}</h2>
             <p className="text-muted-foreground text-sm">
-              PM TIPS — Mordesu Studio
+              {t("platform.name")}
             </p>
             <p className="text-muted-foreground text-sm">
-              منصة تعليمية إلكترونية
+              {t("platform.type")}
             </p>
           </div>
         </div>
       </div>
 
       <div className="mt-10 rounded-lg border bg-muted/30 p-6">
-        <h2 className="font-semibold text-lg mb-3">روابط مفيدة</h2>
+        <h2 className="font-semibold text-lg mb-3">{t("usefulLinks")}</h2>
         <ul className="space-y-2 text-sm">
           <li>
             <Link href="/privacy-policy" className="text-brand hover:underline">
-              سياسة الخصوصية
+              {t("links.privacy")}
             </Link>
           </li>
           <li>
             <Link href="/refund-policy" className="text-brand hover:underline">
-              سياسة الاسترداد
+              {t("links.refund")}
             </Link>
           </li>
           <li>
             <Link href="/terms-of-service" className="text-brand hover:underline">
-              الشروط والأحكام
+              {t("links.terms")}
             </Link>
           </li>
         </ul>

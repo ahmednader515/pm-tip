@@ -28,11 +28,14 @@ import { toast } from "sonner";
 import { formatPrice } from "@/lib/format";
 import { FileUpload } from "@/components/file-upload";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 
 type StoreProduct = {
     id: string;
     title: string;
+    titleEn?: string | null;
     description: string | null;
+    descriptionEn?: string | null;
     imageUrl: string | null;
     price: number;
     downloadUrl: string;
@@ -44,7 +47,9 @@ type StoreProduct = {
 
 type FormState = {
     title: string;
+    titleEn: string;
     description: string;
+    descriptionEn: string;
     imageUrl: string;
     price: string;
     downloadUrl: string;
@@ -54,7 +59,9 @@ type FormState = {
 
 const emptyForm: FormState = {
     title: "",
+    titleEn: "",
     description: "",
+    descriptionEn: "",
     imageUrl: "",
     price: "",
     downloadUrl: "",
@@ -69,6 +76,9 @@ export function StoreProductManager({
     apiBase: "/api/admin/store" | "/api/teacher/store";
     showCreator?: boolean;
 }) {
+    const tCommon = useTranslations("common");
+    const tEditor = useTranslations("editor");
+    const t = useTranslations("editor.store");
     const [products, setProducts] = useState<StoreProduct[]>([]);
     const [loading, setLoading] = useState(true);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -82,10 +92,10 @@ export function StoreProductManager({
             if (res.ok) {
                 setProducts(await res.json());
             } else {
-                toast.error("حدث خطأ في تحميل المنتجات");
+                toast.error(t("loadFailed"));
             }
         } catch {
-            toast.error("حدث خطأ في تحميل المنتجات");
+            toast.error(t("loadFailed"));
         } finally {
             setLoading(false);
         }
@@ -93,6 +103,7 @@ export function StoreProductManager({
 
     useEffect(() => {
         fetchProducts();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [apiBase]);
 
     const openCreate = () => {
@@ -105,7 +116,9 @@ export function StoreProductManager({
         setEditingId(p.id);
         setForm({
             title: p.title,
+            titleEn: p.titleEn ?? "",
             description: p.description ?? "",
+            descriptionEn: p.descriptionEn ?? "",
             imageUrl: p.imageUrl ?? "",
             price: String(p.price),
             downloadUrl: p.downloadUrl,
@@ -120,7 +133,9 @@ export function StoreProductManager({
         try {
             const payload = {
                 title: form.title.trim(),
+                titleEn: form.titleEn.trim() || null,
                 description: form.description.trim() || null,
+                descriptionEn: form.descriptionEn.trim() || null,
                 imageUrl: form.imageUrl.trim() || null,
                 price: parseFloat(form.price),
                 downloadUrl: form.downloadUrl.trim(),
@@ -138,32 +153,32 @@ export function StoreProductManager({
             });
 
             if (res.ok) {
-                toast.success(editingId ? "تم تحديث المنتج" : "تم إضافة المنتج");
+                toast.success(editingId ? t("updated") : t("created"));
                 setDialogOpen(false);
                 fetchProducts();
             } else {
                 const err = await res.text();
-                toast.error(err || "حدث خطأ");
+                toast.error(err || t("error"));
             }
         } catch {
-            toast.error("حدث خطأ");
+            toast.error(t("error"));
         } finally {
             setSaving(false);
         }
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("هل أنت متأكد من حذف هذا المنتج؟")) return;
+        if (!confirm(t("confirmDelete"))) return;
         try {
             const res = await fetch(`${apiBase}/${id}`, { method: "DELETE" });
             if (res.ok) {
-                toast.success("تم حذف المنتج");
+                toast.success(t("deleted"));
                 fetchProducts();
             } else {
-                toast.error("فشل حذف المنتج");
+                toast.error(t("deleteFailed"));
             }
         } catch {
-            toast.error("فشل حذف المنتج");
+            toast.error(t("deleteFailed"));
         }
     };
 
@@ -172,35 +187,35 @@ export function StoreProductManager({
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <ShoppingBag className="h-8 w-8" />
-                    <h1 className="text-2xl font-bold">إدارة المتجر</h1>
+                    <h1 className="text-2xl font-bold">{t("pageTitle")}</h1>
                 </div>
                 <Button onClick={openCreate} className="gap-2">
                     <Plus className="h-4 w-4" />
-                    إضافة منتج
+                    {t("addProduct")}
                 </Button>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>المنتجات</CardTitle>
+                    <CardTitle>{t("products")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
-                        <p className="text-muted-foreground">جاري التحميل...</p>
+                        <p className="text-muted-foreground">{t("loading")}</p>
                     ) : products.length === 0 ? (
-                        <p className="text-muted-foreground">لا توجد منتجات بعد</p>
+                        <p className="text-muted-foreground">{t("noProducts")}</p>
                     ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="text-right">المنتج</TableHead>
+                                    <TableHead className="text-start">{t("product")}</TableHead>
                                     {showCreator && (
-                                        <TableHead className="text-right">المنشئ</TableHead>
+                                        <TableHead className="text-start">{t("creator")}</TableHead>
                                     )}
-                                    <TableHead className="text-right">السعر</TableHead>
-                                    <TableHead className="text-right">المبيعات</TableHead>
-                                    <TableHead className="text-right">الحالة</TableHead>
-                                    <TableHead className="text-right">إجراءات</TableHead>
+                                    <TableHead className="text-start">{t("price")}</TableHead>
+                                    <TableHead className="text-start">{t("sales")}</TableHead>
+                                    <TableHead className="text-start">{t("status")}</TableHead>
+                                    <TableHead className="text-start">{t("actions")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -227,7 +242,7 @@ export function StoreProductManager({
                                         <TableCell>{p._count?.purchases ?? 0}</TableCell>
                                         <TableCell>
                                             <Badge variant={p.isPublished ? "default" : "secondary"}>
-                                                {p.isPublished ? "منشور" : "مسودة"}
+                                                {p.isPublished ? tCommon("published") : tCommon("draft")}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
@@ -260,12 +275,12 @@ export function StoreProductManager({
                 <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>
-                            {editingId ? "تعديل منتج" : "إضافة منتج جديد"}
+                            {editingId ? t("editProduct") : t("newProduct")}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div>
-                            <Label htmlFor="title">العنوان</Label>
+                            <Label htmlFor="title">{tCommon("arabicLabel")} — {t("title")}</Label>
                             <Input
                                 id="title"
                                 value={form.title}
@@ -273,7 +288,16 @@ export function StoreProductManager({
                             />
                         </div>
                         <div>
-                            <Label htmlFor="description">الوصف</Label>
+                            <Label htmlFor="titleEn">{tCommon("englishLabel")} — {tEditor("titleEn")}</Label>
+                            <Input
+                                id="titleEn"
+                                dir="ltr"
+                                value={form.titleEn}
+                                onChange={(e) => setForm({ ...form, titleEn: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="description">{tCommon("arabicLabel")} — {t("description")}</Label>
                             <Textarea
                                 id="description"
                                 value={form.description}
@@ -282,7 +306,17 @@ export function StoreProductManager({
                             />
                         </div>
                         <div>
-                            <Label htmlFor="price">السعر (جنيه)</Label>
+                            <Label htmlFor="descriptionEn">{tCommon("englishLabel")} — {tEditor("descriptionEn")}</Label>
+                            <Textarea
+                                id="descriptionEn"
+                                dir="ltr"
+                                value={form.descriptionEn}
+                                onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })}
+                                rows={3}
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="price">{t("priceEgp")}</Label>
                             <Input
                                 id="price"
                                 type="number"
@@ -293,7 +327,7 @@ export function StoreProductManager({
                             />
                         </div>
                         <div>
-                            <Label htmlFor="downloadUrl">رابط التحميل</Label>
+                            <Label htmlFor="downloadUrl">{t("downloadUrl")}</Label>
                             <Input
                                 id="downloadUrl"
                                 value={form.downloadUrl}
@@ -303,7 +337,7 @@ export function StoreProductManager({
                             />
                         </div>
                         <div>
-                            <Label>صورة المنتج</Label>
+                            <Label>{t("productImage")}</Label>
                             {form.imageUrl && (
                                 <div className="relative w-full h-32 mb-2 rounded border overflow-hidden">
                                     <Image src={form.imageUrl} alt="" fill className="object-cover" />
@@ -311,10 +345,10 @@ export function StoreProductManager({
                                         type="button"
                                         variant="destructive"
                                         size="sm"
-                                        className="absolute top-2 left-2"
+                                        className="absolute top-2 start-2"
                                         onClick={() => setForm({ ...form, imageUrl: "" })}
                                     >
-                                        إزالة
+                                        {t("remove")}
                                     </Button>
                                 </div>
                             )}
@@ -326,7 +360,7 @@ export function StoreProductManager({
                             />
                         </div>
                         <div>
-                            <Label htmlFor="position">الترتيب</Label>
+                            <Label htmlFor="position">{t("position")}</Label>
                             <Input
                                 id="position"
                                 type="number"
@@ -344,16 +378,16 @@ export function StoreProductManager({
                                 }
                             />
                             <Label htmlFor="published" className="cursor-pointer">
-                                نشر في المتجر
+                                {t("publishInStore")}
                             </Label>
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                            إلغاء
+                            {t("cancel")}
                         </Button>
                         <Button onClick={handleSave} disabled={saving}>
-                            {saving ? "جاري الحفظ..." : "حفظ"}
+                            {saving ? t("saving") : t("save")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

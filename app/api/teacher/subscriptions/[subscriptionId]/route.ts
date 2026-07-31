@@ -25,16 +25,28 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { title, type, price, courseIds } = body as {
+    const { title, titleEn, type, price, courseIds } = body as {
       title?: string;
+      titleEn?: string | null;
       type?: string;
       price?: number;
       courseIds?: string[];
     };
 
     const teacherId = session.user.id;
-    const updates: { title?: string; type?: string; price?: number } = {};
+    const updates: {
+      title?: string;
+      titleEn?: string | null;
+      type?: string;
+      price?: number;
+    } = {};
     if (title !== undefined) updates.title = String(title).trim();
+    if (titleEn !== undefined) {
+      updates.titleEn =
+        titleEn == null || String(titleEn).trim() === ""
+          ? null
+          : String(titleEn).trim();
+    }
     if (type !== undefined) {
       if (type !== "MONTHLY" && type !== "YEARLY") {
         return new NextResponse("type must be MONTHLY or YEARLY", { status: 400 });

@@ -1,89 +1,83 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { LegalPage } from "@/components/legal-page";
 
-export const metadata: Metadata = {
-  title: "سياسة الاسترداد | منصة PM TIPS",
-  description: "سياسة الاسترداد والإلغاء لمنصة PM TIPS التعليمية",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("legal.refund");
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+  };
+}
 
-export default function RefundPolicyPage() {
+export default async function RefundPolicyPage() {
+  const t = await getTranslations("legal.refund");
+  const tLegal = await getTranslations("legal");
+
   return (
-    <LegalPage title="سياسة الاسترداد" lastUpdated="24 يونيو 2026">
+    <LegalPage title={t("title")} lastUpdated={tLegal("lastUpdatedDate")}>
       <section>
-        <h2>1. نظرة عامة</h2>
-        <p>
-          تسعى منصة PM TIPS لتقديم محتوى تعليمي عالي الجودة. توضح هذه السياسة
-          شروط وإجراءات طلب استرداد المبالغ المدفوعة مقابل الكورسات أو
-          المنتجات الرقمية.
-        </p>
+        <h2>{t("s1.heading")}</h2>
+        <p>{t("s1.p1")}</p>
       </section>
 
       <section>
-        <h2>2. المنتجات الرقمية</h2>
-        <p>
-          نظراً لطبيعة المحتوى الرقمي (فيديوهات، ملفات، اختبارات)، يُعتبر الشراء
-          نهائياً بمجرد تفعيل الوصول إلى المحتوى، إلا في الحالات المذكورة أدناه.
-        </p>
+        <h2>{t("s2.heading")}</h2>
+        <p>{t("s2.p1")}</p>
       </section>
 
       <section>
-        <h2>3. حالات الاسترداد المؤهلة</h2>
-        <p>قد يتم النظر في طلب الاسترداد في الحالات التالية:</p>
+        <h2>{t("s3.heading")}</h2>
+        <p>{t("s3.intro")}</p>
         <ul>
-          <li>دفع مكرر لنفس الكورس أو المنتج عن طريق الخطأ.</li>
-          <li>عدم تفعيل الوصول إلى المحتوى بعد إتمام الدفع بنجاح.</li>
-          <li>مشكلة تقنية تمنع الوصول إلى المحتوى ولم يتم حلها خلال 7 أيام عمل.</li>
-          <li>شراء الكورس بالخطأ دون مشاهدة أي محتوى، وخلال 48 ساعة من تاريخ الشراء.</li>
+          <li>{t("s3.item1")}</li>
+          <li>{t("s3.item2")}</li>
+          <li>{t("s3.item3")}</li>
+          <li>{t("s3.item4")}</li>
         </ul>
       </section>
 
       <section>
-        <h2>4. حالات غير مؤهلة للاسترداد</h2>
+        <h2>{t("s4.heading")}</h2>
         <ul>
-          <li>بعد مشاهدة جزء كبير من محتوى الكورس أو إكمال اختباراته.</li>
-          <li>تغيير الرأي بعد الاطلاع على المحتوى.</li>
-          <li>مشاكل ناتجة عن جهاز المستخدم أو اتصال الإنترنت.</li>
-          <li>انتهاء فترة الاشتراك أو الوصول المحدد زمنياً.</li>
+          <li>{t("s4.item1")}</li>
+          <li>{t("s4.item2")}</li>
+          <li>{t("s4.item3")}</li>
+          <li>{t("s4.item4")}</li>
         </ul>
       </section>
 
       <section>
-        <h2>5. كيفية تقديم طلب الاسترداد</h2>
-        <p>لتقديم طلب استرداد، يرجى التواصل معنا عبر صفحة{" "}
-          <a href="/contact">تواصل معنا</a> مع تقديم المعلومات التالية:
+        <h2>{t("s5.heading")}</h2>
+        <p>
+          {t.rich("s5.intro", {
+            contactLink: (chunks) => (
+              <Link href="/contact">{chunks}</Link>
+            ),
+          })}
         </p>
         <ul>
-          <li>اسم المستخدم ورقم الهاتف المسجل.</li>
-          <li>اسم الكورس أو المنتج.</li>
-          <li>تاريخ وقيمة عملية الدفع.</li>
-          <li>سبب طلب الاسترداد.</li>
+          <li>{t("s5.item1")}</li>
+          <li>{t("s5.item2")}</li>
+          <li>{t("s5.item3")}</li>
+          <li>{t("s5.item4")}</li>
         </ul>
       </section>
 
       <section>
-        <h2>6. مدة المعالجة</h2>
-        <p>
-          يتم مراجعة طلبات الاسترداد خلال 3–5 أيام عمل. في حالة الموافقة، يُعاد
-          المبلغ إلى وسيلة الدفع الأصلية خلال 7–14 يوم عمل حسب سياسة مزود
-          الدفع.
-        </p>
+        <h2>{t("s6.heading")}</h2>
+        <p>{t("s6.p1")}</p>
       </section>
 
       <section>
-        <h2>7. الاشتراكات</h2>
-        <p>
-          بالنسبة للاشتراكات الدورية، يمكن إلغاء التجديد التلقائي في أي وقت،
-          ولن يتم خصم رسوم للفترة التالية. لا يُسترد مبلغ الفترة الحالية بعد
-          تفعيل الاشتراك إلا وفق الشروط المذكورة أعلاه.
-        </p>
+        <h2>{t("s7.heading")}</h2>
+        <p>{t("s7.p1")}</p>
       </section>
 
       <section>
-        <h2>8. التعديلات</h2>
-        <p>
-          نحتفظ بحق تعديل سياسة الاسترداد. تسري التعديلات على المشتريات الجديدة
-          بعد نشرها على هذه الصفحة.
-        </p>
+        <h2>{t("s8.heading")}</h2>
+        <p>{t("s8.p1")}</p>
       </section>
     </LegalPage>
   );

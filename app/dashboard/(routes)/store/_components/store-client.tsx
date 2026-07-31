@@ -20,11 +20,16 @@ import {
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/format";
 import { ShoppingBag, Wallet, ExternalLink, Download } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { localizedField } from "@/lib/localized";
+import { getDir, type Locale } from "@/i18n/config";
 
 type StoreProduct = {
     id: string;
     title: string;
+    titleEn?: string | null;
     description: string | null;
+    descriptionEn?: string | null;
     imageUrl: string | null;
     price: number;
     isPurchased: boolean;
@@ -37,7 +42,9 @@ type PurchaseRow = {
     product: {
         id: string;
         title: string;
+        titleEn?: string | null;
         description: string | null;
+        descriptionEn?: string | null;
         imageUrl: string | null;
         price: number;
         downloadUrl: string;
@@ -45,6 +52,10 @@ type PurchaseRow = {
 };
 
 export function StoreClient() {
+    const t = useTranslations("store");
+    const tCommon = useTranslations("common");
+    const locale = useLocale() as Locale;
+    const dir = getDir(locale);
     const [products, setProducts] = useState<StoreProduct[]>([]);
     const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
     const [balance, setBalance] = useState(0);
@@ -67,7 +78,7 @@ export function StoreClient() {
                 setBalance(b.balance);
             }
         } catch {
-            toast.error("حدث خطأ في تحميل المتجر");
+            toast.error(t("loadError"));
         } finally {
             setLoading(false);
         }
@@ -81,7 +92,7 @@ export function StoreClient() {
         if (product.isPurchased) return;
 
         if (balance < product.price) {
-            toast.error("رصيد غير كافٍ. يرجى شحن الرصيد أولاً.");
+            toast.error(t("insufficientBalance"));
             return;
         }
 
@@ -103,58 +114,58 @@ export function StoreClient() {
             if (res.ok) {
                 const data = await res.json();
                 setBalance(data.newBalance);
-                toast.success("تم الشراء بنجاح!");
+                toast.success(t("purchaseSuccess"));
                 load();
             } else {
                 const err = await res.text();
                 if (err.includes("Insufficient balance")) {
-                    toast.error("رصيد غير كافٍ");
+                    toast.error(t("insufficient"));
                 } else if (err.includes("already purchased")) {
-                    toast.error("لقد اشتريت هذا المنتج مسبقاً");
+                    toast.error(t("alreadyPurchased"));
                     load();
                 } else {
-                    toast.error(err || "فشل الشراء");
+                    toast.error(err || t("purchaseFailed"));
                 }
             }
         } catch {
-            toast.error("فشل الشراء");
+            toast.error(t("purchaseFailed"));
         } finally {
             setPurchasingId(null);
         }
     };
 
     return (
-        <div className="p-6 space-y-6 w-full text-right" dir="rtl">
+        <div className="p-6 space-y-6 w-full text-start" dir={dir}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-2 justify-start">
                     <ShoppingBag className="h-8 w-8 shrink-0" />
-                    <h1 className="text-2xl font-bold">المتجر</h1>
+<h1 className="text-2xl font-bold">{t("store")}</h1>
                 </div>
                 <Card className="px-4 py-2 w-full sm:w-auto">
                     <div className="flex flex-wrap items-center gap-2 text-sm justify-start">
                         <Wallet className="h-4 w-4 text-primary shrink-0" />
-                        <span>رصيدك:</span>
-                        <span className="font-semibold">{balance.toFixed(2)} جنيه</span>
+<span>{t("yourBalance")}</span>
+<span className="font-semibold">{tCommon("egpAmount", { amount: balance.toFixed(2) })}</span>
                         <Button variant="link" size="sm" asChild className="p-0 h-auto">
-                            <Link href="/dashboard/balance">شحن الرصيد</Link>
+<Link href="/dashboard/balance">{t("topUp")}</Link>
                         </Button>
                     </div>
                 </Card>
             </div>
 
-            <Tabs defaultValue="shop" dir="rtl" className="w-full">
+<Tabs defaultValue="shop" dir={dir} className="w-full">
                 <TabsList className="w-full flex justify-start h-auto">
-                    <TabsTrigger value="shop">المتجر</TabsTrigger>
-                    <TabsTrigger value="purchases">مشترياتي ({purchases.length})</TabsTrigger>
+<TabsTrigger value="shop">{t("store")}</TabsTrigger>
+<TabsTrigger value="purchases">{t("myPurchases", { count: purchases.length })}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="shop" className="mt-6 w-full">
                     {loading ? (
-                        <p className="text-muted-foreground">جاري التحميل...</p>
+<p className="text-muted-foreground">{tCommon("loading")}</p>
                     ) : products.length === 0 ? (
                         <Card>
                             <CardContent className="py-12 text-center text-muted-foreground">
-                                لا توجد منتجات متاحة حالياً
+{t("noProductsAvailable")}
                             </CardContent>
                         </Card>
                     ) : (
@@ -164,21 +175,21 @@ export function StoreClient() {
                                     <div className="relative aspect-video bg-muted">
                                         <Image
                                             src={p.imageUrl || "/placeholder.png"}
-                                            alt={p.title}
+                                            alt={localizedField(p as unknown as Record<string, unknown>, "title", locale)}
                                             fill
                                             className="object-cover"
                                         />
                                         {p.isPurchased && (
-                                            <Badge className="absolute top-2 start-2">مُشترى</Badge>
+<Badge className="absolute top-2 start-2">{t("purchased")}</Badge>
                                         )}
                                     </div>
                                     <CardHeader className="text-right">
                                         <CardTitle className="text-lg line-clamp-2 text-right">
-                                            {p.title}
+                                            {localizedField(p as unknown as Record<string, unknown>, "title", locale)}
                                         </CardTitle>
                                         {p.description && (
                                             <CardDescription className="line-clamp-2 text-right">
-                                                {p.description}
+                                                {localizedField(p as unknown as Record<string, unknown>, "description", locale)}
                                             </CardDescription>
                                         )}
                                     </CardHeader>
@@ -198,7 +209,7 @@ export function StoreClient() {
                                                     className="inline-flex items-center justify-center gap-2"
                                                 >
                                                     <Download className="h-4 w-4 shrink-0" />
-                                                    فتح رابط التحميل
+{t("openDownload")}
                                                 </a>
                                             </Button>
                                         ) : (
@@ -207,7 +218,7 @@ export function StoreClient() {
                                                 disabled={purchasingId === p.id}
                                                 onClick={() => openPurchaseConfirm(p)}
                                             >
-                                                {purchasingId === p.id ? "جاري الشراء..." : "شراء"}
+{purchasingId === p.id ? t("purchasing") : t("buy")}
                                             </Button>
                                         )}
                                     </CardContent>
@@ -219,11 +230,11 @@ export function StoreClient() {
 
                 <TabsContent value="purchases" className="mt-6 w-full">
                     {loading ? (
-                        <p className="text-muted-foreground">جاري التحميل...</p>
+                        <p className="text-muted-foreground">{tCommon("loading")}</p>
                     ) : purchases.length === 0 ? (
                         <Card>
                             <CardContent className="py-12 text-center text-muted-foreground">
-                                لم تشترِ أي منتجات بعد
+{t("noPurchasesYet")}
                             </CardContent>
                         </Card>
                     ) : (
@@ -243,10 +254,10 @@ export function StoreClient() {
                                                 </div>
                                             )}
                                             <div className="min-w-0 text-right">
-                                                <h3 className="font-semibold">{row.product.title}</h3>
+                                                <h3 className="font-semibold">{localizedField(row.product as unknown as Record<string, unknown>, "title", locale)}</h3>
                                                 <p className="text-sm text-muted-foreground">
                                                     {formatPrice(row.pricePaid)} —{" "}
-                                                    {new Date(row.createdAt).toLocaleDateString("ar-SA")}
+                                                    {new Date(row.createdAt).toLocaleDateString(locale === "ar" ? "ar-SA" : "en-US")}
                                                 </p>
                                             </div>
                                         </div>
@@ -258,7 +269,7 @@ export function StoreClient() {
                                                 className="inline-flex items-center gap-2"
                                             >
                                                 <ExternalLink className="h-4 w-4 shrink-0" />
-                                                فتح الرابط
+{t("openLink")}
                                             </a>
                                         </Button>
                                     </CardContent>
@@ -275,20 +286,19 @@ export function StoreClient() {
                     if (!open) setConfirmProduct(null);
                 }}
             >
-                <AlertDialogContent className="text-right" dir="rtl">
+<AlertDialogContent className="text-start" dir={dir}>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>تأكيد الشراء</AlertDialogTitle>
+<AlertDialogTitle>{t("confirmPurchaseTitle")}</AlertDialogTitle>
                         <AlertDialogDescription>
                             {confirmProduct && (
                                 <>
-                                    هل تريد شراء &quot;{confirmProduct.title}&quot; مقابل{" "}
-                                    <span className="font-semibold text-foreground">
-                                        {formatPrice(confirmProduct.price)}
-                                    </span>
-                                    ؟
+                                    {t("confirmPurchaseDesc", {
+                                        title: localizedField(confirmProduct as unknown as Record<string, unknown>, "title", locale),
+                                        price: formatPrice(confirmProduct.price),
+                                    })}
                                     <br />
                                     <span className="text-muted-foreground">
-                                        سيتم خصم المبلغ من رصيدك الحالي ({balance.toFixed(2)} جنيه).
+                                        {t("willDeduct", { balance: balance.toFixed(2) })}
                                     </span>
                                 </>
                             )}
@@ -299,9 +309,9 @@ export function StoreClient() {
                             onClick={confirmPurchase}
                             disabled={!!purchasingId}
                         >
-                            {purchasingId ? "جاري الشراء..." : "تأكيد الشراء"}
+{purchasingId ? t("confirming") : t("confirmPurchase")}
                         </AlertDialogAction>
-                        <AlertDialogCancel disabled={!!purchasingId}>إلغاء</AlertDialogCancel>
+<AlertDialogCancel disabled={!!purchasingId}>{tCommon("cancel")}</AlertDialogCancel>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

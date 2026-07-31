@@ -44,7 +44,7 @@ export async function POST(
     try {
         const { userId } = await auth();
         const resolvedParams = await params;
-        const { title } = await req.json();
+        const { title, titleEn } = await req.json();
 
         if (!userId) {
             return new NextResponse("Unauthorized", { status: 401 });
@@ -75,6 +75,7 @@ export async function POST(
         const chapter = await db.chapter.create({
             data: {
                 title,
+                titleEn: titleEn?.trim() || null,
                 courseId: resolvedParams.courseId,
                 position: newPosition,
             }

@@ -55,7 +55,9 @@ model Course {
   id String @id @default(uuid())
   userId String
   title String @db.Text
+  titleEn String? @db.Text
   description String? @db.Text
+  descriptionEn String? @db.Text
   imageUrl String? @db.Text
   price Float?
   certificateEnabled Boolean @default(false)
@@ -90,7 +92,9 @@ model Attachment {
 model Chapter {
   id String @id @default(uuid())
   title String @db.Text
+  titleEn String? @db.Text
   description String? @db.Text
+  descriptionEn String? @db.Text
   videoUrl String? @db.Text
   videoType String? @default("UPLOAD") // "UPLOAD" or "YOUTUBE"
   youtubeVideoId String? // Store YouTube video ID
@@ -188,6 +192,7 @@ model Subscription {
     id String @id @default(uuid())
     userId String // Teacher who created it
     title String @db.Text
+    titleEn String? @db.Text
     type String // "MONTHLY" or "YEARLY"
     price Float
     user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -246,7 +251,9 @@ model BalanceTransaction {
 model Quiz {
     id String @id @default(uuid())
     title String
+    titleEn String?
     description String? @db.Text
+    descriptionEn String? @db.Text
     position Int
     isPublished Boolean @default(false)
     timer Int? // Timer in minutes, null means no time limit
@@ -284,10 +291,13 @@ model QuizDraft {
 model Question {
     id String @id @default(uuid())
     text String @db.Text
+    textEn String? @db.Text
     type String // "MULTIPLE_CHOICE", "TRUE_FALSE", "SHORT_ANSWER"
     options String? @db.Text // JSON string for multiple choice options
+    optionsEn String? @db.Text
     correctAnswer String @db.Text
     explanation String? @db.Text // Teacher's explanation for the correct answer
+    explanationEn String? @db.Text
     points Int @default(1)
     imageUrl String? @db.Text
     position Int @default(1)
@@ -340,7 +350,9 @@ model StoreProduct {
     id           String   @id @default(uuid())
     userId       String
     title        String   @db.Text
+    titleEn      String?  @db.Text
     description  String?  @db.Text
+    descriptionEn String? @db.Text
     imageUrl     String?  @db.Text
     price        Float
     downloadUrl  String   @db.Text
@@ -386,5 +398,6 @@ model HomepageSettings {
 model QuestionBankSettings {
     id          String   @id @default("default")
     displayName String   @default("بنك الأسئلة")
+    displayNameEn String?
     updatedAt   DateTime @updatedAt
 }

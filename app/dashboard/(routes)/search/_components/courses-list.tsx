@@ -1,5 +1,8 @@
 import { Course, Chapter, User } from "@prisma/client";
 import { CourseCard } from "@/components/course-card";
+import { getTranslations, getLocale } from "next-intl/server";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 interface CoursesListProps {
     items: (Course & {
@@ -8,9 +11,12 @@ interface CoursesListProps {
     })[];
 }
 
-export const CoursesList = ({
+export const CoursesList = async ({
     items
 }: CoursesListProps) => {
+    const t = await getTranslations("dashboard.student.search");
+    const locale = (await getLocale()) as Locale;
+
     return (
         <div>
             <div className="grid sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
@@ -18,7 +24,7 @@ export const CoursesList = ({
                     <CourseCard
                         key={item.id}
                         id={item.id}
-                        title={item.title}
+                        title={localizedField(item as Record<string, unknown>, "title", locale)}
                         imageUrl={item.imageUrl!}
                         chaptersLength={item.chapters.length}
                         price={item.price!}
@@ -32,9 +38,9 @@ export const CoursesList = ({
             </div>
             {items.length === 0 && (
                 <div className="text-center text-sm text-muted-foreground mt-10">
-                    لا توجد كورسات
+                    {t("noCourses")}
                 </div>
             )}
         </div>
     );
-}; 
+};

@@ -1,6 +1,9 @@
+"use client";
+
 import { NavbarRoutes } from "@/components/navbar-routes"
 import { MobileSidebar } from "./mobile-sidebar"
 import { Logo } from "./logo"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 export const Navbar = () => {
     return (
@@ -10,6 +13,7 @@ export const Navbar = () => {
                 <Logo />
             </div>
             <div className="flex items-center gap-x-4 rtl:mr-auto ltr:ml-auto">
+                <LanguageSwitcher variant="ghost" />
                 <NavbarRoutes />
             </div>
         </div>

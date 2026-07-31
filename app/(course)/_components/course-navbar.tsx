@@ -9,6 +9,7 @@ import { UserButton } from "@/components/user-button";
 import { useSession, signOut } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 type CertificateStatus = {
   certificateEnabled: boolean;
@@ -23,6 +24,8 @@ export const CourseNavbar = () => {
   const pathname = usePathname();
   const params = useParams<{ courseId?: string }>();
   const { data: session } = useSession();
+  const t = useTranslations("course");
+  const tNav = useTranslations("nav");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [status, setStatus] = useState<CertificateStatus | null>(null);
 
@@ -70,7 +73,6 @@ export const CourseNavbar = () => {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      // Call logout API to end session
       await fetch("/api/auth/logout", { method: "POST" });
       await signOut({ callbackUrl: "/" });
     } catch (error) {
@@ -94,7 +96,7 @@ export const CourseNavbar = () => {
           size="sm"
           className="flex items-center gap-x-2 hover:bg-slate-100 rtl:mr-2 ltr:ml-2"
         >
-          <span className="rtl:text-right ltr:text-left">الرجوع إلى الكورسات</span>
+          <span className="rtl:text-right ltr:text-left">{tNav("backToCourses")}</span>
           <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </Button>
       </div>
@@ -109,10 +111,10 @@ export const CourseNavbar = () => {
             }`}
             title={
               canOpenCertificates
-                ? "اكتمل التقدم - افتح صفحة الشهادات"
-                : `تقدم الشهادة: ${certificateProgress}%`
+                ? t("certificateComplete")
+                : t("certificateProgress", { percent: certificateProgress })
             }
-            aria-label={`تقدم الشهادة ${certificateProgress}%`}
+            aria-label={t("certificateProgressAria", { percent: certificateProgress })}
           >
             <svg className="h-10 w-10 -rotate-90" viewBox="0 0 40 40" fill="none">
               <circle cx="20" cy="20" r={radius} stroke="currentColor" strokeOpacity="0.15" strokeWidth="4" />
@@ -139,15 +141,15 @@ export const CourseNavbar = () => {
             variant="ghost" 
             onClick={handleLogout}
             loading={isLoggingOut}
-            loadingText="جاري تسجيل الخروج..."
+            loadingText={tNav("loggingOut")}
             className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors duration-200 ease-in-out"
           >
             <LogOut className="h-4 w-4 rtl:ml-2 ltr:mr-2"/>
-            تسجيل الخروج
+            {tNav("logout")}
           </LoadingButton>
         )}
         <UserButton />
       </div>
     </div>
   );
-}; 
+};

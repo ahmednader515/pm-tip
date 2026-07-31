@@ -39,18 +39,24 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useTranslations } from "next-intl";
+import { useCourseColumns, Course } from "@/app/dashboard/(routes)/teacher/courses/_components/columns";
 
 interface DataTableProps<TData extends { id: string }, TValue> {
-    columns: ColumnDef<TData, TValue>[];
+    columns?: ColumnDef<TData, TValue>[];
     data: TData[];
     hideActions?: boolean;
 }
 
-export function AdminCoursesTable<TData extends { id: string }, TValue>({
-    columns,
+export function AdminCoursesTable<TData extends Course, TValue>({
+    columns: columnsProp,
     data,
     hideActions = false,
 }: DataTableProps<TData, TValue>) {
+    const t = useTranslations("dashboard.admin.pages");
+    const tCommon = useTranslations("common");
+    const defaultColumns = useCourseColumns() as ColumnDef<TData, TValue>[];
+    const columns = columnsProp ?? defaultColumns;
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
     const [filterValue, setFilterValue] = useState("");
@@ -83,13 +89,13 @@ export function AdminCoursesTable<TData extends { id: string }, TValue>({
             });
 
             if (!response.ok) {
-                throw new Error("فشل حذف الكورس");
+                throw new Error(t("deleteCourseFailed"));
             }
 
-            toast.success("تم حذف الكورس بنجاح");
+            toast.success(t("deleteCourseSuccess"));
             router.refresh();
         } catch {
-            toast.error("حدث خطأ");
+            toast.error(tCommon("somethingWentWrong"));
         }
     };
 
@@ -99,7 +105,7 @@ export function AdminCoursesTable<TData extends { id: string }, TValue>({
                 <div className="relative w-full max-w-sm">
                     <Search className="absolute h-4 w-4 top-3 left-3 text-muted-foreground" />
                     <Input
-                        placeholder="ابحث عن الكورسات..."
+                        placeholder={t("searchCourses")}
                         value={filterValue}
                         onChange={(e) => handleFilterChange(e.target.value)}
                         className="w-full pl-9"
@@ -157,15 +163,15 @@ export function AdminCoursesTable<TData extends { id: string }, TValue>({
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader>
-                                                            <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
+                                                            <AlertDialogTitle>{tCommon("confirmSure")}</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                لا يمكن التراجع عن هذا العمل. سيتم حذف الكورس وكل محتواها بشكل دائم.
+                                                                {t("deleteCourseConfirm")}
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
-                                                            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                                            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
                                                             <AlertDialogAction onClick={() => onDelete(row.original.id)}>
-                                                                حذف
+                                                                {tCommon("delete")}
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
@@ -181,7 +187,7 @@ export function AdminCoursesTable<TData extends { id: string }, TValue>({
                                     colSpan={columns.length}
                                     className="h-24 text-center"
                                 >
-                                    لا يوجد نتائج.
+                                    {tCommon("noResults")}
                                 </TableCell>
                             </TableRow>
                         )}
@@ -195,7 +201,7 @@ export function AdminCoursesTable<TData extends { id: string }, TValue>({
                     onClick={() => table.previousPage()}
                     disabled={!table.getCanPreviousPage()}
                 >
-                    السابق
+                    {tCommon("previous")}
                 </Button>
                 <Button
                     variant="outline"
@@ -203,7 +209,7 @@ export function AdminCoursesTable<TData extends { id: string }, TValue>({
                     onClick={() => table.nextPage()}
                     disabled={!table.getCanNextPage()}
                 >
-                    التالي
+                    {tCommon("next")}
                 </Button>
             </div>
         </div>

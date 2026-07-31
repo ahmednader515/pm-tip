@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, GripVertical, X, Mic, FileSpreadsheet } from "lucide-react";
+import { Plus, Trash2, GripVertical, X, Mic, FileSpreadsheet, Languages } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter, useParams, usePathname } from "next/navigation";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { UploadDropzone } from "@/lib/uploadthing";
 import { parseCorrectAnswer } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import * as XLSX from "xlsx";
 // Needed for correct non-English decoding in legacy .xls files (BIFF)
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -42,7 +43,9 @@ interface Chapter {
 interface Quiz {
     id: string;
     title: string;
+    titleEn?: string | null;
     description: string;
+    descriptionEn?: string | null;
     courseId: string;
     position: number;
     isPublished: boolean;
@@ -59,11 +62,14 @@ interface Quiz {
 interface Question {
     id: string;
     text: string;
+    textEn?: string;
     imageUrl?: string;
     type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER";
     options?: string[];
+    optionsEn?: string[];
     correctAnswer: string | number | number[]; // TRUE_FALSE/SHORT_ANSWER: string; MULTIPLE_CHOICE: number[] (indices)
     explanation?: string;
+    explanationEn?: string;
     points: number;
 }
 
@@ -80,6 +86,9 @@ const EditQuizPage = () => {
     const params = useParams();
     const quizId = params.quizId as string;
     const pathname = usePathname();
+    const tCommon = useTranslations("common");
+    const tEditor = useTranslations("editor");
+    const t = useTranslations("dashboard.teacher.quizEditor");
     const dashboardPath = pathname.includes("/dashboard/admin/")
         ? "/dashboard/admin/quizzes"
         : "/dashboard/teacher/quizzes";
@@ -87,7 +96,9 @@ const EditQuizPage = () => {
     const [courses, setCourses] = useState<Course[]>([]);
     const [selectedCourse, setSelectedCourse] = useState<string>("");
     const [quizTitle, setQuizTitle] = useState("");
+    const [quizTitleEn, setQuizTitleEn] = useState("");
     const [quizDescription, setQuizDescription] = useState("");
+    const [quizDescriptionEn, setQuizDescriptionEn] = useState("");
     const [quizTimer, setQuizTimer] = useState<number | null>(null);
     const [quizMaxAttempts, setQuizMaxAttempts] = useState<number>(1);
     const [questions, setQuestions] = useState<Question[]>([]);
@@ -101,6 +112,7 @@ const EditQuizPage = () => {
     const [listeningQuestionId, setListeningQuestionId] = useState<string | null>(null);
     const recognitionRef = useRef<any>(null);
     const [importingExcel, setImportingExcel] = useState(false);
+    const [suggestingEnglish, setSuggestingEnglish] = useState(false);
 
     const normalizeType = (raw: unknown): Question["type"] => {
         const v = String(raw ?? "").trim().toUpperCase();
@@ -151,7 +163,7 @@ const EditQuizPage = () => {
         try {
             const ext = file.name.split(".").pop()?.toLowerCase();
             if (ext !== "xlsx") {
-                toast.error("يرجى رفع ملف Excel بصيغة .xlsx فقط (لضمان دعم العربية بدون مشاكل ترميز).");
+                toast.error(t("xlsxOnlyError"));
                 return;
             }
             const buf = await file.arrayBuffer();
@@ -162,7 +174,7 @@ const EditQuizPage = () => {
 
             const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
             if (!rows.length) {
-                toast.error("ملف الإكسل فارغ");
+                toast.error(t("excelEmpty"));
                 return;
             }
 
@@ -180,7 +192,7 @@ const EditQuizPage = () => {
                 const rowNum = idx + 2;
                 const text = String(get(row, "text") ?? "").trim();
                 if (!text) {
-                    errors.push(`صف ${rowNum}: text مطلوب`);
+                    errors.push(t("rowTextRequired", { row: rowNum }));
                     return;
                 }
 
@@ -192,7 +204,7 @@ const EditQuizPage = () => {
                 if (type === "MULTIPLE_CHOICE") {
                     const options = splitOptions(get(row, "options"));
                     if (options.length < 2) {
-                        errors.push(`صف ${rowNum}: options يجب أن يحتوي على خيارين على الأقل (افصل بـ |)`);
+                        errors.push(t("rowOptionsMin", { row: rowNum }));
                         return;
                     }
                     const correct = parseCorrectIndices(get(row, "correct"), options);
@@ -218,7 +230,7 @@ const EditQuizPage = () => {
                 } else {
                     const correct = String(get(row, "correct") ?? "").trim();
                     if (!correct) {
-                        errors.push(`صف ${rowNum}: correct مطلوب لـ SHORT_ANSWER`);
+                        errors.push(t("rowCorrectRequired", { row: rowNum }));
                         return;
                     }
                     imported.push({
@@ -233,18 +245,18 @@ const EditQuizPage = () => {
             });
 
             if (errors.length) {
-                toast.error(errors.slice(0, 6).join("\n") + (errors.length > 6 ? `\n... وعدد ${errors.length - 6} أخطاء أخرى` : ""));
+                toast.error(errors.slice(0, 6).join("\n") + (errors.length > 6 ? `\n${t("moreErrors", { count: errors.length - 6 })}` : ""));
             }
 
             if (imported.length) {
                 setQuestions((prev) => [...prev, ...imported]);
-                toast.success(`تم استيراد ${imported.length} سؤال`);
+                toast.success(t("importSuccess", { count: imported.length }));
             } else if (!errors.length) {
-                toast.error("لم يتم استيراد أي أسئلة");
+                toast.error(t("importNone"));
             }
         } catch (e) {
             console.error("[IMPORT_EXCEL]", e);
-            toast.error("فشل استيراد ملف الإكسل");
+            toast.error(t("importFailed"));
         } finally {
             setImportingExcel(false);
         }
@@ -282,37 +294,48 @@ const EditQuizPage = () => {
             if (response.ok) {
                 const quiz: Quiz = await response.json();
                 setQuizTitle(quiz.title);
+                setQuizTitleEn(quiz.titleEn ?? "");
                 setQuizDescription(quiz.description);
+                setQuizDescriptionEn(quiz.descriptionEn ?? "");
                 setQuizTimer(quiz.timer || null);
                 setQuizMaxAttempts(quiz.maxAttempts || 1);
                 setSelectedCourse(quiz.courseId);
                 
                 // Convert stored correctAnswer (string or JSON array of option texts) to indices for multiple choice
-                const processedQuestions = quiz.questions.map((question: { type: string; options?: string[]; correctAnswer: string }) => {
+                const processedQuestions = quiz.questions.map((question: Question) => {
                     if (question.type === "MULTIPLE_CHOICE" && question.options) {
                         const validOptions = question.options.filter((o: string) => o.trim() !== "");
-                        const correctTexts = parseCorrectAnswer(question.correctAnswer);
+                        const correctTexts = parseCorrectAnswer(String(question.correctAnswer));
                         const indices = correctTexts
                             .map((t) => validOptions.indexOf(t))
                             .filter((i) => i >= 0);
                         return {
                             ...question,
+                            textEn: question.textEn ?? "",
+                            explanationEn: question.explanationEn ?? "",
+                            optionsEn: question.optionsEn?.length
+                                ? question.optionsEn
+                                : question.options.map(() => ""),
                             correctAnswer: indices.length ? indices : [0]
                         };
                     }
-                    return question;
+                    return {
+                        ...question,
+                        textEn: question.textEn ?? "",
+                        explanationEn: question.explanationEn ?? "",
+                    };
                 });
                 
                 setQuestions(processedQuestions);
                 setSelectedPosition(quiz.position);
                 await fetchCourseItems(quiz.courseId);
             } else {
-                toast.error("حدث خطأ أثناء تحميل الاختبار");
+                toast.error(t("loadQuizError"));
                 router.push(dashboardPath);
             }
         } catch (error) {
             console.error("Error fetching quiz:", error);
-            toast.error("حدث خطأ أثناء تحميل الاختبار");
+            toast.error(t("loadQuizError"));
             router.push(dashboardPath);
         } finally {
             setIsLoadingQuiz(false);
@@ -396,7 +419,7 @@ const EditQuizPage = () => {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
         if (!SpeechRecognition) {
-            toast.error("المتصفح لا يدعم الإملاء الصوتي");
+            toast.error(t("speechUnsupported"));
             return;
         }
 
@@ -437,7 +460,7 @@ const EditQuizPage = () => {
 
             recognition.onerror = (event: any) => {
                 console.error("[SPEECH_RECOGNITION_ERROR]", event.error);
-                toast.error("تعذر التعرف على الصوت");
+                toast.error(t("speechRecognizeFailed"));
             };
 
             recognition.onend = () => {
@@ -449,7 +472,7 @@ const EditQuizPage = () => {
             recognition.start();
         } catch (error) {
             console.error("[SPEECH_RECOGNITION]", error);
-            toast.error("تعذر بدء التسجيل الصوتي");
+            toast.error(t("speechStartFailed"));
             stopListening();
         }
     };
@@ -457,7 +480,7 @@ const EditQuizPage = () => {
     const handleUpdateQuiz = async () => {
         stopListening();
         if (!selectedCourse || !quizTitle.trim()) {
-            toast.error("يرجى إدخال جميع البيانات المطلوبة");
+            toast.error(t("fillRequired"));
             return;
         }
 
@@ -469,7 +492,7 @@ const EditQuizPage = () => {
             
             // Validate question text
             if (!question.text || question.text.trim() === "") {
-                validationErrors.push(`السؤال ${i + 1}: نص السؤال مطلوب`);
+                validationErrors.push(t("validationTextRequired", { n: i + 1 }));
                 continue;
             }
 
@@ -477,7 +500,7 @@ const EditQuizPage = () => {
             if (question.type === "MULTIPLE_CHOICE") {
                 const validOptions = question.options?.filter(option => option.trim() !== "") || [];
                 if (validOptions.length === 0) {
-                    validationErrors.push(`السؤال ${i + 1}: يجب إضافة خيار واحد على الأقل`);
+                    validationErrors.push(t("validationOptionsMin", { n: i + 1 }));
                     continue;
                 }
                 const correctArr = Array.isArray(question.correctAnswer)
@@ -486,24 +509,24 @@ const EditQuizPage = () => {
                     ? [question.correctAnswer]
                     : [];
                 if (correctArr.length === 0 || correctArr.some((idx) => idx < 0 || idx >= validOptions.length)) {
-                    validationErrors.push(`السؤال ${i + 1}: يجب اختيار إجابة صحيحة واحدة على الأقل`);
+                    validationErrors.push(t("validationCorrectMcq", { n: i + 1 }));
                     continue;
                 }
             } else if (question.type === "TRUE_FALSE") {
                 if (!question.correctAnswer || (question.correctAnswer !== "true" && question.correctAnswer !== "false")) {
-                    validationErrors.push(`السؤال ${i + 1}: يجب اختيار إجابة صحيحة`);
+                    validationErrors.push(t("validationCorrectTf", { n: i + 1 }));
                     continue;
                 }
             } else if (question.type === "SHORT_ANSWER") {
                 if (!question.correctAnswer || question.correctAnswer.toString().trim() === "") {
-                    validationErrors.push(`السؤال ${i + 1}: الإجابة الصحيحة مطلوبة`);
+                    validationErrors.push(t("validationCorrectSa", { n: i + 1 }));
                     continue;
                 }
             }
 
             // Check if points are valid
             if (question.points <= 0) {
-                validationErrors.push(`السؤال ${i + 1}: الدرجات يجب أن تكون أكبر من صفر`);
+                validationErrors.push(t("validationPoints", { n: i + 1 }));
                 continue;
             }
         }
@@ -515,18 +538,21 @@ const EditQuizPage = () => {
 
         // Additional validation: ensure no questions are empty
         if (questions.length === 0) {
-            toast.error("يجب إضافة سؤال واحد على الأقل");
+            toast.error(t("atLeastOneQuestion"));
             return;
         }
 
         // Clean up questions before sending
         const cleanedQuestions = questions.map(question => {
             if (question.type === "MULTIPLE_CHOICE" && question.options) {
-                // Filter out empty options and ensure correct answer is included
-                const filteredOptions = question.options.filter(option => option.trim() !== "");
+                const optsEn = question.optionsEn || [];
+                const paired = question.options
+                    .map((option, i) => ({ option, en: optsEn[i] ?? "" }))
+                    .filter(({ option }) => option.trim() !== "");
                 return {
                     ...question,
-                    options: filteredOptions
+                    options: paired.map((p) => p.option),
+                    optionsEn: paired.map((p) => p.en),
                 };
             }
             return question;
@@ -541,7 +567,9 @@ const EditQuizPage = () => {
                 },
                 body: JSON.stringify({
                     title: quizTitle,
+                    titleEn: quizTitleEn.trim() || null,
                     description: quizDescription,
+                    descriptionEn: quizDescriptionEn.trim() || null,
                     courseId: selectedCourse,
                     questions: cleanedQuestions,
                     position: selectedPosition,
@@ -551,15 +579,15 @@ const EditQuizPage = () => {
             });
 
             if (response.ok) {
-                toast.success("تم تحديث الاختبار بنجاح");
+                toast.success(t("updateSuccess"));
                 router.push(dashboardPath);
             } else {
                 const error = await response.json();
-                toast.error(error.message || "حدث خطأ أثناء تحديث الاختبار");
+                toast.error(error.message || t("updateError"));
             }
         } catch (error) {
             console.error("Error updating quiz:", error);
-            toast.error("حدث خطأ أثناء تحديث الاختبار");
+            toast.error(t("updateError"));
         } finally {
             setIsUpdatingQuiz(false);
         }
@@ -569,19 +597,89 @@ const EditQuizPage = () => {
         const newQuestion: Question = {
             id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             text: "",
+            textEn: "",
             type: "MULTIPLE_CHOICE",
             options: ["", ""],
+            optionsEn: ["", ""],
             correctAnswer: [0],
             explanation: "",
+            explanationEn: "",
             points: 1,
         };
         setQuestions([...questions, newQuestion]);
     };
 
+    const suggestEnglish = async () => {
+        const texts: string[] = [quizTitle, quizDescription];
+        const meta: { kind: string; qi?: number; oi?: number }[] = [
+            { kind: "title" },
+            { kind: "description" },
+        ];
+        questions.forEach((q, qi) => {
+            texts.push(q.text || "");
+            meta.push({ kind: "text", qi });
+            texts.push(q.explanation || "");
+            meta.push({ kind: "explanation", qi });
+            if (q.type === "MULTIPLE_CHOICE") {
+                (q.options || []).forEach((opt, oi) => {
+                    texts.push(opt || "");
+                    meta.push({ kind: "option", qi, oi });
+                });
+            }
+        });
+        if (!texts.some((t) => t.trim())) {
+            toast.error(t("noArabicToTranslate"));
+            return;
+        }
+        setSuggestingEnglish(true);
+        try {
+            const res = await fetch("/api/translate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ texts }),
+            });
+            if (!res.ok) throw new Error("translate failed");
+            const data = await res.json();
+            const translations: string[] = data.translations || [];
+            const nextQuestions = questions.map((q) => ({
+                ...q,
+                optionsEn: q.optionsEn ? [...q.optionsEn] : (q.options || []).map(() => ""),
+            }));
+            translations.forEach((tr, i) => {
+                const m = meta[i];
+                if (!m) return;
+                if (m.kind === "title") setQuizTitleEn(tr);
+                else if (m.kind === "description") setQuizDescriptionEn(tr);
+                else if (m.kind === "text" && m.qi != null) nextQuestions[m.qi].textEn = tr;
+                else if (m.kind === "explanation" && m.qi != null) nextQuestions[m.qi].explanationEn = tr;
+                else if (m.kind === "option" && m.qi != null && m.oi != null) {
+                    const opts = nextQuestions[m.qi].optionsEn || [];
+                    while (opts.length <= m.oi) opts.push("");
+                    opts[m.oi] = tr;
+                    nextQuestions[m.qi].optionsEn = opts;
+                }
+            });
+            setQuestions(nextQuestions);
+            toast.success(t("suggestSuccess"));
+        } catch {
+            toast.error(t("suggestFailed"));
+        } finally {
+            setSuggestingEnglish(false);
+        }
+    };
+
     const addOption = (questionIndex: number) => {
         const question = questions[questionIndex];
         const currentOptions = question.options || ["", ""];
-        updateQuestion(questionIndex, "options", [...currentOptions, ""]);
+        const currentOptionsEn = question.optionsEn || currentOptions.map(() => "");
+        const updated = {
+            ...question,
+            options: [...currentOptions, ""],
+            optionsEn: [...currentOptionsEn, ""],
+        };
+        const updatedQuestions = [...questions];
+        updatedQuestions[questionIndex] = updated;
+        setQuestions(updatedQuestions);
     };
 
     const removeOption = (questionIndex: number, optionIndex: number) => {
@@ -589,6 +687,7 @@ const EditQuizPage = () => {
         const currentOptions = question.options || ["", ""];
         if (currentOptions.length <= 2) return;
         const newOptions = currentOptions.filter((_, i) => i !== optionIndex);
+        const newOptionsEn = (question.optionsEn || []).filter((_, i) => i !== optionIndex);
         const currentCorrect = Array.isArray(question.correctAnswer)
             ? question.correctAnswer
             : typeof question.correctAnswer === "number"
@@ -600,6 +699,7 @@ const EditQuizPage = () => {
         const updated = {
             ...question,
             options: newOptions,
+            optionsEn: newOptionsEn,
             correctAnswer: newCorrect.length ? newCorrect : [0],
         };
         const updatedQuestions = [...questions];
@@ -672,13 +772,13 @@ const EditQuizPage = () => {
                 });
 
                 if (response.ok) {
-                    toast.success("تم ترتيب الاختبار بنجاح");
+                    toast.success(t("reorderSuccess"));
                 } else {
-                    toast.error("حدث خطأ أثناء ترتيب الاختبار");
+                    toast.error(t("reorderError"));
                 }
             } catch (error) {
                 console.error("Error reordering quiz:", error);
-                toast.error("حدث خطأ أثناء ترتيب الاختبار");
+                toast.error(t("reorderError"));
             }
         }
         // For other items, we don't want to reorder them, so we ignore the drag
@@ -688,7 +788,7 @@ const EditQuizPage = () => {
     if (isLoadingQuiz) {
         return (
             <div className="p-6">
-                <div className="text-center">جاري التحميل...</div>
+                <div className="text-center">{tCommon("loading")}</div>
             </div>
         );
     }
@@ -697,17 +797,29 @@ const EditQuizPage = () => {
         <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                    تعديل الاختبار
+                    {t("editTitle")}
                 </h1>
-                <Button variant="outline" onClick={() => router.push(dashboardPath)}>
-                    العودة إلى الاختبارات
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={suggestEnglish}
+                        disabled={suggestingEnglish}
+                        className="gap-2"
+                    >
+                        <Languages className="h-4 w-4" />
+                        {suggestingEnglish ? "..." : tCommon("suggestEnglish")}
+                    </Button>
+                    <Button variant="outline" onClick={() => router.push(dashboardPath)}>
+                        {t("backToQuizzes")}
+                    </Button>
+                </div>
             </div>
 
             <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label>اختر الكورس</Label>
+                        <Label>{t("selectCourse")}</Label>
                         <Select value={selectedCourse} onValueChange={(value) => {
                             setSelectedCourse(value);
                             // Clear previous data immediately
@@ -718,7 +830,7 @@ const EditQuizPage = () => {
                             }
                         }}>
                             <SelectTrigger>
-                                <SelectValue placeholder="اختر كورس..." />
+                                <SelectValue placeholder={t("selectCoursePlaceholder")} />
                             </SelectTrigger>
                             <SelectContent>
                                 {courses.map((course) => (
@@ -730,30 +842,40 @@ const EditQuizPage = () => {
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label>عنوان الاختبار</Label>
+                        <Label>{tCommon("arabicLabel")} — {t("quizTitleLabel")}</Label>
                         <Input
                             value={quizTitle}
                             onChange={(e) => setQuizTitle(e.target.value)}
-                            placeholder="أدخل عنوان الاختبار"
+                            placeholder={t("quizTitlePlaceholder")}
                         />
                     </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label>{tCommon("englishLabel")} — {tEditor("titleEn")}</Label>
+                    <Input
+                        dir="ltr"
+                        value={quizTitleEn}
+                        onChange={(e) => setQuizTitleEn(e.target.value)}
+                        placeholder={t("quizTitlePlaceholderEn")}
+                    />
                 </div>
 
                 {selectedCourse && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>ترتيب الاختبار في الكورس</CardTitle>
+                            <CardTitle>{t("reorderTitle")}</CardTitle>
                             <p className="text-sm text-muted-foreground">
-                                اسحب الاختبار إلى الموقع المطلوب بين الفصول والاختبارات الموجودة
+                                {t("reorderHintEdit")}
                             </p>
                             <p className="text-sm text-blue-600">
-                                الموقع المحدد: {selectedPosition}
+                                {t("selectedPosition", { position: selectedPosition })}
                             </p>
                         </CardHeader>
                         <CardContent>
                             {isLoadingCourseItems ? (
                                 <div className="text-center py-8">
-                                    <div className="text-muted-foreground">جاري تحميل محتوى الكورس...</div>
+                                    <div className="text-muted-foreground">{t("loadingCourseContent")}</div>
                                 </div>
                             ) : courseItems.length > 0 ? (
                                 <DragDropContext onDragEnd={handleDragEnd}>
@@ -783,12 +905,12 @@ const EditQuizPage = () => {
                                                                             {item.title}
                                                                         </div>
                                                                         <div className={`text-sm ${item.id === quizId ? "text-blue-600" : "text-muted-foreground"}`}>
-                                                                            {item.type === "chapter" ? "فصل" : "اختبار"}
+                                                                            {item.type === "chapter" ? t("chapterType") : t("quizType")}
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                                 <Badge variant={item.id === quizId ? "outline" : (item.isPublished ? "default" : "secondary")} className={item.id === quizId ? "border-blue-300 text-blue-700" : ""}>
-                                                                    {item.id === quizId ? "قيد التعديل" : (item.isPublished ? "منشور" : "مسودة")}
+                                                                    {item.id === quizId ? t("editingBadge") : (item.isPublished ? tCommon("published") : tCommon("draft"))}
                                                                 </Badge>
                                                             </div>
                                                         )}
@@ -803,19 +925,17 @@ const EditQuizPage = () => {
                             ) : (
                                 <div className="text-center py-8">
                                     <p className="text-muted-foreground mb-4">
-                                        لا توجد فصول أو اختبارات في هذه الكورس. سيتم إضافة الاختبار في الموقع الأول.
+                                        {t("emptyCourseContent")}
                                     </p>
                                     <div className="p-3 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
                                         <div className="flex items-center justify-center space-x-3">
                                             <div>
                                                 <div className="font-medium text-blue-800">
-                                                    {quizTitle || "اختبار جديد"}
+                                                    {quizTitle || t("newQuizDefault")}
                                                 </div>
-                                                <div className="text-sm text-blue-600">اختبار</div>
+                                                <div className="text-sm text-blue-600">{t("quizType")}</div>
                                             </div>
-                                            <Badge variant="outline" className="border-blue-300 text-blue-700">
-                                                قيد التعديل
-                                            </Badge>
+                                            <Badge variant="outline" className="border-blue-300 text-blue-700">{t("editingBadge")}</Badge>
                                         </div>
                                     </div>
                                 </div>
@@ -825,31 +945,42 @@ const EditQuizPage = () => {
                 )}
 
                 <div className="space-y-2">
-                    <Label>وصف الاختبار</Label>
+                    <Label>{tCommon("arabicLabel")} — {t("quizDescriptionLabel")}</Label>
                     <Textarea
                         value={quizDescription}
                         onChange={(e) => setQuizDescription(e.target.value)}
-                        placeholder="أدخل وصف الاختبار"
+                        placeholder={t("quizDescriptionPlaceholder")}
+                        rows={3}
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label>{tCommon("englishLabel")} — {tEditor("descriptionEn")}</Label>
+                    <Textarea
+                        dir="ltr"
+                        value={quizDescriptionEn}
+                        onChange={(e) => setQuizDescriptionEn(e.target.value)}
+                        placeholder={t("quizDescriptionPlaceholderEn")}
                         rows={3}
                     />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label>مدة الاختبار (بالدقائق)</Label>
+                        <Label>{t("timerLabel")}</Label>
                         <Input
                             type="number"
                             value={quizTimer || ""}
                             onChange={(e) => setQuizTimer(e.target.value ? parseInt(e.target.value) : null)}
-                            placeholder="اترك فارغاً لعدم تحديد مدة"
+                            placeholder={t("timerPlaceholder")}
                             min="1"
                         />
                         <p className="text-sm text-muted-foreground">
-                            اترك الحقل فارغاً إذا كنت لا تريد تحديد مدة للاختبار
+                            {t("timerHint")}
                         </p>
                     </div>
                     <div className="space-y-2">
-                        <Label>عدد المحاولات المسموحة</Label>
+                        <Label>{t("maxAttemptsLabel")}</Label>
                         <Input
                             type="number"
                             value={quizMaxAttempts}
@@ -858,7 +989,7 @@ const EditQuizPage = () => {
                             max="10"
                         />
                         <p className="text-sm text-muted-foreground">
-                            عدد المرات التي يمكن للطالب إعادة الاختبار
+                            {t("maxAttemptsHint")}
                         </p>
                     </div>
                 </div>
@@ -867,7 +998,7 @@ const EditQuizPage = () => {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <FileSpreadsheet className="h-5 w-5" />
-                            استيراد الأسئلة من Excel
+                            {t("importExcelTitle")}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -886,22 +1017,22 @@ const EditQuizPage = () => {
                         </div>
 
                         <div className="text-sm text-muted-foreground space-y-2">
-                            <div className="font-medium text-foreground">تنسيق ملف الإكسل (أعمدة مطلوبة):</div>
+                            <div className="font-medium text-foreground">{t("excelFormatTitle")}</div>
                             <ul className="list-disc pr-5 space-y-1">
-                                <li><span className="font-medium">text</span>: نص السؤال</li>
-                                <li><span className="font-medium">type</span>: نوع السؤال: <span className="font-mono">MULTIPLE_CHOICE</span> أو <span className="font-mono">TRUE_FALSE</span> أو <span className="font-mono">SHORT_ANSWER</span></li>
-                                <li><span className="font-medium">points</span>: الدرجات (اختياري، الافتراضي 1)</li>
-                                <li><span className="font-medium">options</span>: (لـ MULTIPLE_CHOICE فقط) الخيارات مفصولة بـ <span className="font-mono">|</span> مثل <span className="font-mono">A|B|C|D</span></li>
+                                <li><span className="font-medium">text</span>: {t("excelColText")}</li>
+                                <li><span className="font-medium">type</span>: {t("excelColType")}</li>
+                                <li><span className="font-medium">points</span>: {t("excelColPoints")}</li>
+                                <li><span className="font-medium">options</span>: {t("excelColOptions")}</li>
                                 <li><span className="font-medium">correct</span>:</li>
                                 <ul className="list-disc pr-5">
-                                    <li>لـ MULTIPLE_CHOICE: أرقام 1-based مفصولة بـ <span className="font-mono">,</span> أو <span className="font-mono">|</span> مثل <span className="font-mono">1</span> أو <span className="font-mono">1,3</span> (يدعم تعدد الإجابات الصحيحة)</li>
-                                    <li>لـ TRUE_FALSE: <span className="font-mono">true</span>/<span className="font-mono">false</span> أو <span className="font-mono">صح</span>/<span className="font-mono">خطأ</span></li>
-                                    <li>لـ SHORT_ANSWER: النص الصحيح</li>
+                                    <li>{t("excelColCorrectMcq")}</li>
+                                    <li>{t("excelColCorrectTf")}</li>
+                                    <li>{t("excelColCorrectSa")}</li>
                                 </ul>
-                                <li><span className="font-medium">explanation</span>: شرح الإجابة الصحيحة (اختياري)</li>
+                                <li><span className="font-medium">explanation</span>: {t("excelColExplanation")}</li>
                             </ul>
                             <div className="text-xs">
-                                ملاحظة: يتم قبول ملفات <span className="font-mono">.xlsx</span> فقط لتجنب مشاكل ترميز العربية. أول ورقة فقط يتم قراءتها، وأسماء الأعمدة غير حساسة لحالة الأحرف.
+                                {t("excelNote")}
                             </div>
                         </div>
                     </CardContent>
@@ -909,10 +1040,10 @@ const EditQuizPage = () => {
 
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                        <Label>الأسئلة</Label>
+                        <Label>{t("questionsLabel")}</Label>
                         <Button type="button" variant="outline" onClick={addQuestion}>
                             <Plus className="h-4 w-4 mr-2" />
-                            إضافة سؤال
+                            {t("addQuestion")}
                         </Button>
                     </div>
 
@@ -921,7 +1052,7 @@ const EditQuizPage = () => {
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <CardTitle className="text-lg">السؤال {index + 1}</CardTitle>
+                                        <CardTitle className="text-lg">{t("questionN", { n: index + 1 })}</CardTitle>
                                         {(!question.text.trim() || 
                                             (question.type === "MULTIPLE_CHOICE" &&
                                              (!question.options || question.options.filter(opt => opt.trim() !== "").length === 0)) ||
@@ -931,7 +1062,7 @@ const EditQuizPage = () => {
                                             (question.type === "SHORT_ANSWER" &&
                                              (typeof question.correctAnswer !== 'string' || question.correctAnswer.trim() === ""))) && (
                                             <Badge variant="destructive" className="text-xs">
-                                                غير مكتمل
+                                                {t("incomplete")}
                                             </Badge>
                                         )}
                                     </div>
@@ -948,11 +1079,11 @@ const EditQuizPage = () => {
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <Label>نص السؤال</Label>
+                                        <Label>{t("questionTextLabel")}</Label>
                                         <div className="flex items-center gap-2">
                                             {listeningQuestionId === question.id && (
                                                 <span className="text-xs text-blue-600">
-                                                    جاري الاستماع...
+                                                    {t("listening")}
                                                 </span>
                                             )}
                                             <Button
@@ -965,7 +1096,7 @@ const EditQuizPage = () => {
                                             >
                                                 <Mic className="h-4 w-4" />
                                                 <span className="sr-only">
-                                                    {listeningQuestionId === question.id ? "إيقاف التسجيل الصوتي" : "بدء التسجيل الصوتي"}
+                                                    {listeningQuestionId === question.id ? t("stopSpeech") : t("startSpeech")}
                                                 </span>
                                             </Button>
                                         </div>
@@ -973,12 +1104,22 @@ const EditQuizPage = () => {
                                     <Textarea
                                         value={question.text}
                                         onChange={(e) => updateQuestion(index, "text", e.target.value)}
-                                        placeholder="أدخل نص السؤال"
+                                        placeholder={t("questionTextPlaceholder")}
                                     />
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label>صورة السؤال (اختياري)</Label>
+                                    <Label>{tCommon("englishLabel")} — {tEditor("textEn")}</Label>
+                                    <Textarea
+                                        dir="ltr"
+                                        value={question.textEn ?? ""}
+                                        onChange={(e) => updateQuestion(index, "textEn", e.target.value)}
+                                        placeholder={t("questionTextPlaceholderEn")}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>{t("questionImageLabel")}</Label>
                                     <div className="space-y-2">
                                         {question.imageUrl ? (
                                             <div className="relative">
@@ -1004,12 +1145,12 @@ const EditQuizPage = () => {
                                                     onClientUploadComplete={(res) => {
                                                         if (res && res[0]) {
                                                             updateQuestion(index, "imageUrl", res[0].url);
-                                                            toast.success("تم رفع الصورة بنجاح");
+                                                            toast.success(t("imageUploadSuccess"));
                                                         }
                                                         setUploadingImages(prev => ({ ...prev, [index]: false }));
                                                     }}
                                                     onUploadError={(error: Error) => {
-                                                        toast.error(`حدث خطأ أثناء رفع الصورة: ${error.message}`);
+                                                        toast.error(t("imageUploadError", { message: error.message }));
                                                         setUploadingImages(prev => ({ ...prev, [index]: false }));
                                                     }}
                                                     onUploadBegin={() => {
@@ -1023,7 +1164,7 @@ const EditQuizPage = () => {
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label>نوع السؤال</Label>
+                                        <Label>{t("questionTypeLabel")}</Label>
                                         <Select
                                             value={question.type}
                                             onValueChange={(value: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER") => {
@@ -1040,14 +1181,14 @@ const EditQuizPage = () => {
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="MULTIPLE_CHOICE">اختيار من متعدد</SelectItem>
-                                                <SelectItem value="TRUE_FALSE">صح أو خطأ</SelectItem>
-                                                <SelectItem value="SHORT_ANSWER">إجابة قصيرة</SelectItem>
+                                                <SelectItem value="MULTIPLE_CHOICE">{t("typeMultipleChoice")}</SelectItem>
+                                                <SelectItem value="TRUE_FALSE">{t("typeTrueFalse")}</SelectItem>
+                                                <SelectItem value="SHORT_ANSWER">{t("typeShortAnswer")}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>الدرجات</Label>
+                                        <Label>{t("pointsLabel")}</Label>
                                         <Input
                                             type="number"
                                             value={question.points}
@@ -1059,7 +1200,7 @@ const EditQuizPage = () => {
 
                                 {question.type === "MULTIPLE_CHOICE" && (
                                     <div className="space-y-2">
-                                        <Label>الخيارات</Label>
+                                        <Label>{tCommon("arabicLabel")} — {t("optionsLabel")}</Label>
                                         {(question.options || ["", ""]).map((option, optionIndex) => (
                                             <div key={`${question.id}-option-${optionIndex}`} className="flex items-center gap-2">
                                                 <Input
@@ -1071,15 +1212,15 @@ const EditQuizPage = () => {
                                                         newOptions[optionIndex] = e.target.value;
                                                         updateQuestion(index, "options", newOptions);
                                                     }}
-                                                    placeholder={`الخيار ${optionIndex + 1}`}
+                                                    placeholder={t("optionN", { n: optionIndex + 1 })}
                                                 />
-                                                <div className="flex items-center gap-1 shrink-0" title="إجابة صحيحة">
+                                                <div className="flex items-center gap-1 shrink-0" title={t("correctAnswerTitle")}>
                                                     <Checkbox
                                                         id={`correct-${question.id}-${optionIndex}`}
                                                         checked={(Array.isArray(question.correctAnswer) ? question.correctAnswer : []).includes(optionIndex)}
                                                         onCheckedChange={() => toggleCorrectOption(index, optionIndex)}
                                                     />
-                                                    <Label htmlFor={`correct-${question.id}-${optionIndex}`} className="text-xs cursor-pointer">صحيح</Label>
+                                                    <Label htmlFor={`correct-${question.id}-${optionIndex}`} className="text-xs cursor-pointer">{t("correctShort")}</Label>
                                                 </div>
                                                 <Button
                                                     type="button"
@@ -1088,11 +1229,26 @@ const EditQuizPage = () => {
                                                     className="shrink-0 text-muted-foreground hover:text-destructive"
                                                     onClick={() => removeOption(index, optionIndex)}
                                                     disabled={(question.options || ["", ""]).length <= 2}
-                                                    title="حذف الخيار"
+                                                    title={t("deleteOption")}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             </div>
+                                        ))}
+                                        <Label className="pt-2 block">{tCommon("englishLabel")} — {tEditor("optionsEn")}</Label>
+                                        {(question.options || ["", ""]).map((_, optionIndex) => (
+                                            <Input
+                                                key={`${question.id}-option-en-${optionIndex}`}
+                                                dir="ltr"
+                                                value={(question.optionsEn || [])[optionIndex] ?? ""}
+                                                onChange={(e) => {
+                                                    const optsEn = [...(question.optionsEn || [])];
+                                                    while (optsEn.length <= optionIndex) optsEn.push("");
+                                                    optsEn[optionIndex] = e.target.value;
+                                                    updateQuestion(index, "optionsEn", optsEn);
+                                                }}
+                                                placeholder={t("optionNEn", { n: optionIndex + 1 })}
+                                            />
                                         ))}
                                         <Button
                                             type="button"
@@ -1102,24 +1258,24 @@ const EditQuizPage = () => {
                                             className="gap-1"
                                         >
                                             <Plus className="h-4 w-4" />
-                                            إضافة خيار
+                                            {t("addOption")}
                                         </Button>
                                     </div>
                                 )}
 
                                 {question.type === "TRUE_FALSE" && (
                                     <div className="space-y-2">
-                                        <Label>الإجابة الصحيحة</Label>
+                                        <Label>{t("correctAnswerLabel")}</Label>
                                         <Select
                                             value={typeof question.correctAnswer === 'string' ? question.correctAnswer : ''}
                                             onValueChange={(value) => updateQuestion(index, "correctAnswer", value)}
                                         >
                                             <SelectTrigger>
-                                                <SelectValue placeholder="اختر الإجابة الصحيحة" />
+                                                <SelectValue placeholder={t("selectCorrectAnswer")} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="true">صح</SelectItem>
-                                                <SelectItem value="false">خطأ</SelectItem>
+                                                <SelectItem value="true">{tCommon("true")}</SelectItem>
+                                                <SelectItem value="false">{tCommon("false")}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -1127,21 +1283,33 @@ const EditQuizPage = () => {
 
                                 {question.type === "SHORT_ANSWER" && (
                                     <div className="space-y-2">
-                                        <Label>الإجابة الصحيحة</Label>
+                                        <Label>{t("correctAnswerLabel")}</Label>
                                         <Input
                                             value={typeof question.correctAnswer === 'string' ? question.correctAnswer : ''}
                                             onChange={(e) => updateQuestion(index, "correctAnswer", e.target.value)}
-                                            placeholder="أدخل الإجابة الصحيحة"
+                                            placeholder={t("correctAnswerPlaceholder")}
                                         />
                                     </div>
                                 )}
 
                                 <div className="space-y-2">
-                                    <Label>شرح الإجابة الصحيحة (اختياري)</Label>
+                                    <Label>{tCommon("arabicLabel")} — {t("explanationLabel")}</Label>
                                     <Textarea
                                         value={question.explanation ?? ""}
                                         onChange={(e) => updateQuestion(index, "explanation", e.target.value)}
-                                        placeholder="أدخل شرحاً للإجابة الصحيحة يظهر للطالب عند عرض الإجابة"
+                                        placeholder={t("explanationPlaceholder")}
+                                        rows={3}
+                                        className="resize-none"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>{tCommon("englishLabel")} — {tEditor("explanationEn")}</Label>
+                                    <Textarea
+                                        dir="ltr"
+                                        value={question.explanationEn ?? ""}
+                                        onChange={(e) => updateQuestion(index, "explanationEn", e.target.value)}
+                                        placeholder={t("explanationPlaceholderEn")}
                                         rows={3}
                                         className="resize-none"
                                     />
@@ -1156,13 +1324,13 @@ const EditQuizPage = () => {
                         variant="outline"
                         onClick={() => router.push(dashboardPath)}
                     >
-                        إلغاء
+                        {tCommon("cancel")}
                     </Button>
                     <Button
                         onClick={handleUpdateQuiz}
                         disabled={isUpdatingQuiz || questions.length === 0}
                     >
-                        {isUpdatingQuiz ? "جاري التحديث..." : "تحديث الاختبار"}
+                        {isUpdatingQuiz ? t("updating") : t("updateQuizBtn")}
                     </Button>
                 </div>
             </div>

@@ -13,13 +13,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Pencil, Globe } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 const formSchema = z.object({
     title: z.string().min(1, {
-        message: "العنوان مطلوب",
+        message: "Title is required",
     }),
     description: z.string().min(1, {
-        message: "الوصف مطلوب",
+        message: "Description is required",
     }),
 });
 
@@ -33,6 +34,9 @@ export const CourseForm = ({
     courseId
 }: CourseFormProps) => {
     const router = useRouter();
+    const tCommon = useTranslations("common");
+    const tPages = useTranslations("dashboard.teacher.pages");
+    const t = useTranslations("dashboard.teacher.courseEditor");
     const [isEditing, setIsEditing] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -50,11 +54,11 @@ export const CourseForm = ({
         try {
             setIsLoading(true);
             await axios.patch(`/api/courses/${courseId}`, values);
-            toast.success("تم تحديث الكورس");
+            toast.success(t("courseUpdated"));
             toggleEdit();
             router.refresh();
         } catch {
-            toast.error("حدث خطأ ما");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsLoading(false);
         }
@@ -64,10 +68,10 @@ export const CourseForm = ({
         try {
             setIsLoading(true);
             await axios.patch(`/api/courses/${courseId}/publish`);
-            toast.success(initialData.isPublished ? "تم إلغاء النشر" : "تم النشر");
+            toast.success(initialData.isPublished ? tPages("unpublishSuccess") : tPages("publishSuccess"));
             router.refresh();
         } catch {
-            toast.error("حدث خطأ ما");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsLoading(false);
         }
@@ -76,14 +80,14 @@ export const CourseForm = ({
     return (
         <div className="mt-6 border bg-slate-100 rounded-md p-4">
             <div className="font-medium flex items-center justify-between">
-                إعدادات الكورس
+                {t("courseSettings")}
                 <Button onClick={toggleEdit} variant="ghost">
                     {isEditing ? (
-                        <>إلغاء</>
+                        <>{tCommon("cancel")}</>
                     ) : (
                         <>
                             <Pencil className="h-4 w-4 mr-2" />
-                            تعديل الكورس
+                            {tCommon("edit")} {tCommon("course")}
                         </>
                     )}
                 </Button>
@@ -91,7 +95,7 @@ export const CourseForm = ({
             {!isEditing && (
                 <div className="mt-4 flex items-center justify-between">
                     <p className="text-sm text-slate-500">
-                        {initialData.isPublished ? "منشور" : "مسودة"}
+                        {initialData.isPublished ? tCommon("published") : tCommon("draft")}
                     </p>
                     <Button
                         onClick={onPublish}
@@ -99,7 +103,7 @@ export const CourseForm = ({
                         variant={initialData.isPublished ? "destructive" : "default"}
                     >
                         <Globe className="h-4 w-4 mr-2" />
-                        {initialData.isPublished ? "إلغاء النشر" : "نشر"}
+                        {initialData.isPublished ? tCommon("unpublish") : tCommon("publish")}
                     </Button>
                 </div>
             )}
@@ -114,7 +118,7 @@ export const CourseForm = ({
                                     <FormControl>
                                         <Input
                                             disabled={isLoading}
-                                            placeholder="e.g. 'تطوير الويب '"
+                                            placeholder={t("titlePlaceholder")}
                                             {...field}
                                         />
                                     </FormControl>
@@ -127,11 +131,11 @@ export const CourseForm = ({
                             name="description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>الوصف</FormLabel>
+                                    <FormLabel>{tCommon("description")}</FormLabel>
                                     <FormControl>
                                         <Textarea
                                             disabled={isLoading}
-                                            placeholder="e.g. 'هذه الكورس سوف تعلمك...'"
+                                            placeholder={t("descriptionPlaceholder")}
                                             {...field}
                                         />
                                     </FormControl>
@@ -144,7 +148,7 @@ export const CourseForm = ({
                                 disabled={isLoading}
                                 type="submit"
                             >
-                                حفظ
+                                {tCommon("save")}
                             </Button>
                         </div>
                     </form>

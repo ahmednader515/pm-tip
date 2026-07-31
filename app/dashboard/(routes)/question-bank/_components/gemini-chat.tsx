@@ -6,20 +6,28 @@ import { MessageCircle, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { getWelcomeMessage } from "@/lib/question-bank-settings";
 import type { ChatAttachment, ChatHistoryMessage } from "@/lib/chat/multimodal";
+import { useLocale, useTranslations } from "next-intl";
 import { GeminiComposer } from "./gemini-composer";
 import { GeminiMessage, type UIMessage } from "./gemini-message";
-
-const SUGGESTIONS = ["إدارة المخاطر", "PMBOK", "الجدول الزمني", "شرح سؤال"];
 
 type GeminiChatProps = {
   displayName: string;
 };
 
 export function GeminiChat({ displayName }: GeminiChatProps) {
+  const t = useTranslations("dashboard.student.questionBank");
+  const locale = useLocale();
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = [
+    t("suggestions.risk"),
+    t("suggestions.pmbok"),
+    t("suggestions.schedule"),
+    t("suggestions.explain"),
+  ];
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -113,7 +121,7 @@ export function GeminiChat({ displayName }: GeminiChatProps) {
               scrollToBottom();
             } else if (payload.type === "error") {
               throw new Error(
-                payload.message ?? "حدث خطأ أثناء المعالجة."
+                payload.message ?? t("processingError")
               );
             }
           }
@@ -132,7 +140,7 @@ export function GeminiChat({ displayName }: GeminiChatProps) {
                 ? {
                     ...m,
                     streaming: false,
-                    content: m.content || "تم إيقاف الإنشاء.",
+                    content: m.content || t("generationStopped"),
                   }
                 : m
             )
@@ -143,9 +151,9 @@ export function GeminiChat({ displayName }: GeminiChatProps) {
         const errMessage =
           error instanceof Error
             ? error.message
-            : "حدث خطأ أثناء المعالجة. يرجى المحاولة مرة أخرى.";
+            : t("processingErrorRetry");
 
-        toast.error("فشل إرسال الرسالة");
+        toast.error(t("sendFailed"));
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
@@ -159,7 +167,7 @@ export function GeminiChat({ displayName }: GeminiChatProps) {
         scrollToBottom();
       }
     },
-    [buildHistory, scrollToBottom]
+    [buildHistory, scrollToBottom, t]
   );
 
   const sendMessage = useCallback(
@@ -232,7 +240,7 @@ export function GeminiChat({ displayName }: GeminiChatProps) {
           disabled={streaming && messages.length === 0}
         >
           <Plus className="h-4 w-4 ml-2" />
-          محادثة جديدة
+          {t("newChat")}
         </Button>
       </div>
 
@@ -244,11 +252,11 @@ export function GeminiChat({ displayName }: GeminiChatProps) {
                 ✦
               </div>
               <h2 className="text-2xl font-semibold">
-                {getWelcomeMessage(displayName)}
+                {getWelcomeMessage(displayName, locale)}
               </h2>
             </div>
             <div className="flex flex-wrap justify-center gap-2 max-w-2xl">
-              {SUGGESTIONS.map((suggestion) => (
+              {suggestions.map((suggestion) => (
                 <Button
                   key={suggestion}
                   type="button"

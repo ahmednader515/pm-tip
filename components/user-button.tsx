@@ -9,9 +9,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export const UserButton = () => {
   const { data: session } = useSession();
+  const t = useTranslations("nav");
 
   if (!session?.user) {
     return null;
@@ -19,7 +21,6 @@ export const UserButton = () => {
 
   const handleLogout = async () => {
     try {
-      // Call logout API to end session
       await fetch("/api/auth/logout", { method: "POST" });
       await signOut();
     } catch (error) {
@@ -43,9 +44,9 @@ export const UserButton = () => {
           className="text-red-600 cursor-pointer"
         >
           <LogOut className="h-4 w-4 mr-2" />
-          تسجيل الخروج
+          {t("logout")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}; 
+};

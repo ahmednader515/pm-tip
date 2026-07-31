@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 import { Pencil, PlusCircle, Grip, Loader2 } from "lucide-react";
 import { Chapter } from "@prisma/client";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { useTranslations } from "next-intl";
 
 import {
     Form,
@@ -40,6 +41,9 @@ export const ChapterForm = ({
     initialData,
     courseId
 }: ChapterFormProps) => {
+    const tCommon = useTranslations("common");
+    const tCourse = useTranslations("course");
+    const t = useTranslations("dashboard.teacher.courseEditor");
     const [isCreating, setIsCreating] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
 
@@ -59,11 +63,11 @@ export const ChapterForm = ({
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         try {
             await axios.post(`/api/courses/${courseId}/chapters`, values);
-            toast.success("Chapter created");
+            toast.success(t("chapterCreated"));
             toggleCreating();
             router.refresh();
         } catch {
-            toast.error("Something went wrong");
+            toast.error(tCommon("errors.generic"));
         }
     }
 
@@ -73,10 +77,10 @@ export const ChapterForm = ({
             await axios.put(`/api/courses/${courseId}/chapters/reorder`, {
                 list: updateData
             });
-            toast.success("Chapters reordered");
+            toast.success(t("chaptersReordered"));
             router.refresh();
         } catch {
-            toast.error("Something went wrong");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setIsUpdating(false);
         }
@@ -105,13 +109,13 @@ export const ChapterForm = ({
                 </div>
             )}
             <div className="font-medium flex items-center justify-between">
-                الفصول
+                {t("chaptersTitle")}
                 <Button onClick={toggleCreating} variant="ghost">
-                    {isCreating && (<>الغاء</>)}
+                    {isCreating && (<>{tCommon("cancel")}</>)}
                     {!isCreating && (
                     <>
                         <PlusCircle className="h-4 w-4 mr-2" />
-                        إضافة فصل
+                        {t("addChapter")}
                     </>)}
                 </Button>
             </div>
@@ -136,7 +140,7 @@ export const ChapterForm = ({
                         />
                         <div className="flex items-center gap-x-2">
                             <Button disabled={!isValid || isSubmitting} type="submit">
-                                إنشاء
+                                {tCommon("create")}
                             </Button>
                         </div>
                     </form>
@@ -147,7 +151,7 @@ export const ChapterForm = ({
                     "text-sm mt-2",
                     !initialData.chapters.length && "text-muted-foreground italic"
                 )}>
-                    {!initialData.chapters.length && "لا يوجد فصول"}
+                    {!initialData.chapters.length && t("noChapters")}
                     <DragDropContext onDragEnd={onDragEnd}>
                         <Droppable droppableId="chapters">
                             {(provided) => (
@@ -184,7 +188,7 @@ export const ChapterForm = ({
                                                     <div className="ml-auto pr-2 flex items-center gap-x-2">
                                                         {chapter.isFree && (
                                                             <Badge>
-                                                                مجاني
+                                                                {tCourse("free")}
                                                             </Badge>
                                                         )}
                                                         <Badge
@@ -193,7 +197,7 @@ export const ChapterForm = ({
                                                                 chapter.isPublished && "bg-primary/20 text-primary"
                                                             )}
                                                         >
-                                                            {chapter.isPublished ? "منشور" : "مسودة"}
+                                                            {chapter.isPublished ? tCommon("published") : tCommon("draft")}
                                                         </Badge>
                                                         <Pencil
                                                             onClick={() => router.push(`/dashboard/teacher/courses/${courseId}/chapters/${chapter.id}`)}

@@ -1,5 +1,7 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Progress } from "@/components/ui/progress";
 import { Search, Eye, BookOpen, CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
-import { ar } from "date-fns/locale";
+import { ar, enUS } from "date-fns/locale";
 
 interface User {
     id: string;
@@ -59,6 +61,11 @@ interface Purchase {
 }
 
 const ProgressPage = () => {
+    const t = useTranslations("dashboard.admin.pages");
+    const tCommon = useTranslations("common");
+    const locale = useLocale();
+    const dateLocale = locale === "ar" ? ar : enUS;
+
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -126,7 +133,7 @@ const ProgressPage = () => {
     if (loading) {
         return (
             <div className="p-6">
-                <div className="text-center">جاري التحميل...</div>
+                <div className="text-center">{tCommon("loading")}</div>
             </div>
         );
     }
@@ -134,18 +141,16 @@ const ProgressPage = () => {
     return (
         <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                    تقدم الطلاب
-                </h1>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t("progressTitle")}</h1>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>قائمة الطلاب</CardTitle>
+                    <CardTitle>{tCommon("studentsList")}</CardTitle>
                     <div className="flex items-center space-x-2">
                         <Search className="h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="البحث بالاسم أو رقم الهاتف..."
+                            placeholder={tCommon("searchByNameOrPhone")}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="max-w-sm"
@@ -156,11 +161,11 @@ const ProgressPage = () => {
                     <Table>
                                                  <TableHeader>
                              <TableRow>
-                                 <TableHead className="text-right">الاسم</TableHead>
-                                 <TableHead className="text-right">رقم الهاتف</TableHead>
-                                 <TableHead className="text-right">الكورسات المشتراة</TableHead>
-                                 <TableHead className="text-right">التقدم</TableHead>
-                                 <TableHead className="text-right">الإجراءات</TableHead>
+                                 <TableHead className="text-right">{tCommon("fullName")}</TableHead>
+                                 <TableHead className="text-right">{tCommon("phoneNumber")}</TableHead>
+                                 <TableHead className="text-right">{tCommon("purchasedCourses")}</TableHead>
+                                 <TableHead className="text-right">{t("progressCol")}</TableHead>
+                                 <TableHead className="text-right">{tCommon("actions")}</TableHead>
                              </TableRow>
                          </TableHeader>
                         <TableBody>
@@ -172,12 +177,12 @@ const ProgressPage = () => {
                                     <TableCell>{user.phoneNumber}</TableCell>
                                     <TableCell>
                                         <Badge variant="outline">
-                                            {user._count.purchases} كورس
+                                            {tCommon("courseCount", { count: user._count.purchases })}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="secondary">
-                                            {user._count.userProgress} فصل
+                                            {tCommon("chapterCountShort", { count: user._count.userProgress })}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
@@ -187,7 +192,7 @@ const ProgressPage = () => {
                                             onClick={() => handleViewProgress(user)}
                                         >
                                             <Eye className="h-4 w-4" />
-                                            عرض التقدم
+                                            {t("viewProgress")}
                                         </Button>
                                     </TableCell>
                                 </TableRow>
@@ -201,34 +206,34 @@ const ProgressPage = () => {
                 <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>
-                            تقدم {selectedUser?.fullName}
+                            {t("progressFor", { name: selectedUser?.fullName })}
                         </DialogTitle>
                     </DialogHeader>
                     
                     {loadingProgress ? (
-                        <div className="text-center py-8">جاري التحميل...</div>
+                        <div className="text-center py-8">{tCommon("loading")}</div>
                     ) : (
                         <div className="space-y-6">
                             {/* Progress Summary */}
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>ملخص التقدم</CardTitle>
+                                    <CardTitle>{t("progressSummary")}</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <span>نسبة الإنجاز</span>
+                                            <span>{t("completionRate")}</span>
                                             <span className="font-bold">{progressPercentage.toFixed(1)}%</span>
                                         </div>
                                         <Progress value={progressPercentage} className="w-full" />
                                         <div className="grid grid-cols-2 gap-4 text-center">
                                             <div>
                                                 <div className="text-2xl font-bold text-green-600">{completedProgress}</div>
-                                                <div className="text-sm text-muted-foreground">مكتمل</div>
+                                                <div className="text-sm text-muted-foreground">{tCommon("completed")}</div>
                                             </div>
                                             <div>
                                                 <div className="text-2xl font-bold text-gray-600">{notStartedChapters}</div>
-                                                <div className="text-sm text-muted-foreground">لم يبدأ</div>
+                                                <div className="text-sm text-muted-foreground">{tCommon("notStarted")}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -238,16 +243,16 @@ const ProgressPage = () => {
                             {/* Purchased Courses */}
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>الكورسات المشتراة</CardTitle>
+                                    <CardTitle>{tCommon("purchasedCourses")}</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <Table>
                                                                                  <TableHeader>
                                              <TableRow>
-                                                 <TableHead className="text-right">اسم الكورس</TableHead>
-                                                 <TableHead className="text-right">السعر</TableHead>
-                                                 <TableHead className="text-right">الحالة</TableHead>
-                                                 <TableHead className="text-right">تاريخ الشراء</TableHead>
+                                                 <TableHead className="text-right">{tCommon("courseName")}</TableHead>
+                                                 <TableHead className="text-right">{tCommon("price")}</TableHead>
+                                                 <TableHead className="text-right">{tCommon("status")}</TableHead>
+                                                 <TableHead className="text-right">{tCommon("purchaseDate")}</TableHead>
                                              </TableRow>
                                          </TableHeader>
                                         <TableBody>
@@ -257,15 +262,15 @@ const ProgressPage = () => {
                                                         {purchase.course.title}
                                                     </TableCell>
                                                     <TableCell>
-                                                        {purchase.course.price} جنيه
+                                                        {tCommon("amountEgp", { amount: purchase.course.price })}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Badge variant={purchase.status === "ACTIVE" ? "default" : "secondary"}>
-                                                            {purchase.status === "ACTIVE" ? "نشط" : "غير نشط"}
+                                                            {purchase.status === "ACTIVE" ? tCommon("active") : tCommon("inactive")}
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell>
-                                                        {format(new Date(purchase.createdAt), "dd/MM/yyyy", { locale: ar })}
+                                                        {format(new Date(purchase.createdAt), "dd/MM/yyyy", { locale: dateLocale })}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -277,16 +282,16 @@ const ProgressPage = () => {
                             {/* Progress Details */}
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>تفاصيل التقدم</CardTitle>
+                                    <CardTitle>{t("progressDetails")}</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <Table>
                                                                                  <TableHeader>
                                              <TableRow>
-                                                 <TableHead className="text-right">الكورس</TableHead>
-                                                 <TableHead className="text-right">الفصل</TableHead>
-                                                 <TableHead className="text-right">الحالة</TableHead>
-                                                 <TableHead className="text-right">آخر تحديث</TableHead>
+                                                 <TableHead className="text-right">{tCommon("course")}</TableHead>
+                                                 <TableHead className="text-right">{tCommon("chapterLabel")}</TableHead>
+                                                 <TableHead className="text-right">{tCommon("status")}</TableHead>
+                                                 <TableHead className="text-right">{tCommon("lastUpdated")}</TableHead>
                                              </TableRow>
                                          </TableHeader>
                                         <TableBody>
@@ -304,25 +309,19 @@ const ProgressPage = () => {
                                                             {progress ? (
                                                                 progress.isCompleted ? (
                                                                     <Badge variant="default" className="flex items-center gap-1">
-                                                                        <CheckCircle className="h-3 w-3" />
-                                                                        مكتمل
-                                                                    </Badge>
+                                                                        <CheckCircle className="h-3 w-3" />{tCommon("completed")}</Badge>
                                                                 ) : (
                                                                     <Badge variant="secondary" className="flex items-center gap-1">
-                                                                        <Clock className="h-3 w-3" />
-                                                                        قيد التقدم
-                                                                    </Badge>
+                                                                        <Clock className="h-3 w-3" />{tCommon("inProgress")}</Badge>
                                                                 )
                                                             ) : (
                                                                 <Badge variant="outline" className="flex items-center gap-1">
-                                                                    <BookOpen className="h-3 w-3" />
-                                                                    لم يبدأ
-                                                                </Badge>
+                                                                    <BookOpen className="h-3 w-3" />{tCommon("notStarted")}</Badge>
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
                                                             {progress ? (
-                                                                format(new Date(progress.updatedAt), "dd/MM/yyyy", { locale: ar })
+                                                                format(new Date(progress.updatedAt), "dd/MM/yyyy", { locale: dateLocale })
                                                             ) : (
                                                                 "-"
                                                             )}

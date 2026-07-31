@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Bar, Pie } from 'react-chartjs-2';
@@ -60,6 +62,9 @@ interface AnalyticsData {
 }
 
 const AnalyticsPage = () => {
+    const t = useTranslations("dashboard.teacher.pages");
+    const tCommon = useTranslations("common");
+    
   const { theme } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [analytics, setAnalytics] = useState<AnalyticsData>({
@@ -71,7 +76,7 @@ const AnalyticsPage = () => {
       labels: [],
       datasets: [
         {
-          label: 'الإيرادات',
+          label: t("revenueLabel"),
           data: [],
           backgroundColor: 'rgba(75, 192, 192, 0.5)',
         },
@@ -143,7 +148,7 @@ const AnalyticsPage = () => {
       },
       title: {
         display: true,
-        text: 'إيرادات الكورس',
+        text: t("courseRevenueChart"),
         color: textColor,
         font: {
           family: 'Inter, sans-serif',
@@ -187,7 +192,7 @@ const AnalyticsPage = () => {
       },
       title: {
         display: true,
-        text: 'توزيع المبيعات',
+        text: t("salesDistribution"),
         color: textColor,
         font: {
           family: 'Inter, sans-serif',
@@ -209,24 +214,22 @@ const AnalyticsPage = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">لوحة الاحصائيات</h1>
-        <p className="text-sm text-muted-foreground">
-          التحليلات الخاصة بك
-        </p>
+        <h1 className="text-2xl font-bold">{t("analyticsTitle")}</h1>
+        <p className="text-sm text-muted-foreground">{t("analyticsSubtitle")}</p>
       </div>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-6 bg-blue-50 rounded-lg shadow-sm">
-          <h3 className="text-sm font-medium text-muted-foreground">إجمالي الإيرادات</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">{t("totalRevenue")}</h3>
           <p className="text-3xl font-bold">EGP {analytics.totalRevenue.toFixed(2)}</p>
         </Card>
         <Card className="p-6 bg-green-50 rounded-lg shadow-sm">
-          <h3 className="text-sm font-medium text-muted-foreground">إجمالي المبيعات</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">{t("totalSales")}</h3>
           <p className="text-3xl font-bold">{analytics.totalSales}</p>
         </Card>
         <Card className="p-6 bg-amber-50 rounded-lg shadow-sm">
-          <h3 className="text-sm font-medium text-muted-foreground">الكورسات المنشورة</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">{t("publishedCourses")}</h3>
           <p className="text-3xl font-bold">{analytics.courseCount}</p>
         </Card>
       </div>
@@ -234,13 +237,13 @@ const AnalyticsPage = () => {
       {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6 rounded-lg shadow-sm">
-          <h3 className="text-lg font-medium mb-4">الإيرادات بالكورس</h3>
+          <h3 className="text-lg font-medium mb-4">{t("revenueByCourse")}</h3>
           <div className="h-80">
             <Bar options={barOptions} data={analytics.revenueData} />
           </div>
         </Card>
         <Card className="p-6 rounded-lg shadow-sm">
-          <h3 className="text-lg font-medium mb-4">توزيع المبيعات</h3>
+          <h3 className="text-lg font-medium mb-4">{t("salesDistribution")}</h3>
           <div className="h-80 flex items-center justify-center">
             <Pie options={pieOptions} data={analytics.salesData} />
           </div>
@@ -249,15 +252,15 @@ const AnalyticsPage = () => {
 
       {/* Course Performance Table */}
       <Card className="p-6 rounded-lg shadow-sm">
-        <h3 className="text-lg font-medium mb-4">أداء الكورس</h3>
+        <h3 className="text-lg font-medium mb-4">{t("coursePerformance")}</h3>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-3 px-2">الكورس</th>
-                <th className="text-center py-3 px-2">المبيعات</th>
-                <th className="text-center py-3 px-2">الإيرادات</th>
-                <th className="text-center py-3 px-2">معدل الاكتمال</th>
+                <th className="text-left py-3 px-2">{tCommon("course")}</th>
+                <th className="text-center py-3 px-2">{t("salesCol")}</th>
+                <th className="text-center py-3 px-2">{t("revenueLabel")}</th>
+                <th className="text-center py-3 px-2">{t("completionRateCol")}</th>
               </tr>
             </thead>
             <tbody>

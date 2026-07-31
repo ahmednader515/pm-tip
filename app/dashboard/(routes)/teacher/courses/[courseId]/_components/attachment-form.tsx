@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { File, Loader2, PlusCircle, X } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { useTranslations } from "next-intl";
 import { FileUpload } from "@/components/file-upload";
 import { Attachment, Course } from "@prisma/client";
 
@@ -18,6 +19,8 @@ export const AttachmentForm = ({
     initialData,
     courseId
 }: AttachmentFormProps) => {
+    const tCommon = useTranslations("common");
+    const t = useTranslations("dashboard.teacher.courseEditor");
     const [isEditing, setIsEditing] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -28,11 +31,11 @@ export const AttachmentForm = ({
     const onSubmit = async (values: { url: string; name: string }) => {
         try {
             await axios.post(`/api/courses/${courseId}/attachments`, values);
-            toast.success("Course updated");
+            toast.success(t("courseUpdated"));
             toggleEdit();
             router.refresh();
         } catch {
-            toast.error("Something went wrong");
+            toast.error(tCommon("errors.generic"));
         }
     }
 
@@ -40,10 +43,10 @@ export const AttachmentForm = ({
         try {
             setDeletingId(id);
             await axios.delete(`/api/courses/${courseId}/attachments/${id}`);
-            toast.success("Attachment deleted");
+            toast.success(t("fileDeleted"));
             router.refresh();
         } catch {
-            toast.error("Something went wrong");
+            toast.error(tCommon("errors.generic"));
         } finally {
             setDeletingId(null);
         }
@@ -52,13 +55,13 @@ export const AttachmentForm = ({
     return (
         <div className="mt-6 border bg-card rounded-md p-4">
             <div className="font-medium flex items-center justify-between">
-                المرفقات
+                {t("attachmentsTitle")}
                 <Button onClick={toggleEdit} variant="ghost">
-                    {isEditing && (<>الغاء</>)}
+                    {isEditing && (<>{tCommon("cancel")}</>)}
                     {!isEditing && (
                         <>
                             <PlusCircle className="h-4 w-4 mr-2" />
-                            إضافة ملف
+                            {t("addFile")}
                         </>
                     )}
                 </Button>
@@ -67,7 +70,7 @@ export const AttachmentForm = ({
                 <>
                     {initialData.attachments.length === 0 && (
                         <p className="text-sm mt-2 text-muted-foreground italic">
-                            لا يوجد ملفات مرفوعة
+                            {t("noFilesUploaded")}
                         </p>
                     )}
                     {initialData.attachments.length > 0 && (
@@ -114,7 +117,7 @@ export const AttachmentForm = ({
                         }}
                     />
                     <div className="text-xs text-muted-foreground mt-4">
-                        أضف أي شيء قد يحتاجه الطلاب لإكمال الكورس.
+                        {t("attachmentHint")}
                     </div>
                 </div>
             )}

@@ -9,6 +9,9 @@ import { BookOpen, Play, Clock, Trophy, Wallet, TrendingUp, BookOpen as BookOpen
 import Link from "next/link";
 import Image from "next/image";
 import { Course, Purchase, Chapter } from "@prisma/client";
+import { getTranslations, getLocale } from "next-intl/server";
+import { localizedField } from "@/lib/localized";
+import type { Locale } from "@/i18n/config";
 
 type CourseWithProgress = Course & {
   chapters: { id: string }[];
@@ -36,6 +39,11 @@ type StudentStats = {
 }
 
 const CoursesPage = async () => {
+  const t = await getTranslations("dashboard.student");
+  const tHome = await getTranslations("dashboard.student.home");
+  const tCourse = await getTranslations("course");
+  const tCommon = await getTranslations("common");
+  const locale = (await getLocale()) as Locale;
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
@@ -66,6 +74,7 @@ const CoursesPage = async () => {
           course: {
             select: {
               title: true,
+              titleEn: true,
               imageUrl: true
             }
           }
@@ -249,8 +258,8 @@ const CoursesPage = async () => {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">مرحباً بك في لوحة التحكم</h1>
-        <p className="text-muted-foreground">طريقك للنجاح و التفوق</p>
+        <h1 className="text-3xl font-bold mb-2">{t("pages.welcomeTitle")}</h1>
+        <p className="text-muted-foreground">{t("pages.welcomeSubtitle")}</p>
       </div>
 
       {/* Stats and Balance Row */}
@@ -259,8 +268,8 @@ const CoursesPage = async () => {
         <div className="bg-gradient-to-r from-brand to-brand/90 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-white/80 text-sm">الرصيد الحالي</p>
-              <p className="text-2xl font-bold">{user?.balance?.toFixed(2) || "0.00"} جنيه</p>
+              <p className="text-white/80 text-sm">{tHome("currentBalance")}</p>
+              <p className="text-2xl font-bold">{tCommon("egpAmount", { amount: user?.balance?.toFixed(2) || "0.00" })}</p>
             </div>
             <Wallet className="h-8 w-8 text-white/70" />
           </div>
@@ -270,7 +279,7 @@ const CoursesPage = async () => {
         <div className="bg-gradient-to-r from-brand to-brand/90 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-white/80 text-sm">الكورسات المشتراة</p>
+              <p className="text-white/80 text-sm">{tHome("purchasedCourses")}</p>
               <p className="text-2xl font-bold">{studentStats.totalCourses}</p>
             </div>
             <BookOpenIcon className="h-8 w-8 text-white/70" />
@@ -281,7 +290,7 @@ const CoursesPage = async () => {
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm">الفصول المكتملة</p>
+              <p className="text-purple-100 text-sm">{tHome("completedChapters")}</p>
               <p className="text-2xl font-bold">{studentStats.completedChapters}</p>
             </div>
             <Trophy className="h-8 w-8 text-purple-200" />
@@ -292,7 +301,7 @@ const CoursesPage = async () => {
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-orange-100 text-sm">متوسط الدرجات</p>
+              <p className="text-orange-100 text-sm">{tHome("averageScore")}</p>
               <p className="text-2xl font-bold">{studentStats.averageScore}%</p>
             </div>
             <TrendingUp className="h-8 w-8 text-orange-200" />
@@ -303,14 +312,14 @@ const CoursesPage = async () => {
       {/* Last Watched Chapter - Big Square */}
       {lastWatchedChapter && (
         <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">آخر فصل كنت تشاهده</h2>
+          <h2 className="text-xl font-semibold mb-4">{tHome("lastWatchedChapter")}</h2>
           <div className="bg-card rounded-xl overflow-hidden border shadow-lg">
             <div className="grid grid-cols-1 lg:grid-cols-2">
               {/* Image Section */}
               <div className="relative h-64 lg:h-full">
                 <Image
                   src={lastWatchedChapter.chapter.course.imageUrl || "/placeholder.png"}
-                  alt={lastWatchedChapter.chapter.course.title}
+                  alt={localizedField(lastWatchedChapter.chapter.course as Record<string, unknown>, "title", locale)}
                   fill
                   className="object-cover"
                 />
@@ -326,20 +335,20 @@ const CoursesPage = async () => {
               <div className="p-6 flex flex-col justify-center">
                 <div className="mb-4">
                   <p className="text-sm text-muted-foreground mb-2">
-                    {lastWatchedChapter.chapter.course.title}
+                    {localizedField(lastWatchedChapter.chapter.course as Record<string, unknown>, "title", locale)}
                   </p>
                   <h3 className="text-2xl font-bold mb-2">
-                    {lastWatchedChapter.chapter.title}
+                    {localizedField(lastWatchedChapter.chapter as Record<string, unknown>, "title", locale)}
                   </h3>
                   <p className="text-muted-foreground">
-                    الفصل رقم {lastWatchedChapter.chapter.position}
+                    {tHome("chapterNumber", { number: lastWatchedChapter.chapter.position })}
                   </p>
                 </div>
 
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Clock className="h-4 w-4" />
-                    <span>آخر مشاهدة منذ ساعة</span>
+                    <span>{tHome("lastWatchedAgo")}</span>
                   </div>
                   
                   <Button 
@@ -349,7 +358,7 @@ const CoursesPage = async () => {
                   >
                     <Link href={`/courses/${lastWatchedChapter.chapter.courseId}/chapters/${lastWatchedChapter.chapter.id}`}>
                       <Play className="h-4 w-4 ml-2" />
-                      متابعة المشاهدة
+                      {tHome("continueWatching")}
                     </Link>
                   </Button>
                 </div>
@@ -361,7 +370,7 @@ const CoursesPage = async () => {
 
       {/* Detailed Statistics */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">إحصائيات التعلم</h2>
+        <h2 className="text-xl font-semibold mb-4">{t("pages.learningStats")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-card rounded-xl p-6 border">
             <div className="flex items-center gap-3 mb-4">
@@ -369,13 +378,13 @@ const CoursesPage = async () => {
                 <BookOpenIcon className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">إجمالي الفصول</p>
+                <p className="text-sm text-muted-foreground">{tHome("totalChapters")}</p>
                 <p className="text-2xl font-bold">{studentStats.totalChapters}</p>
               </div>
             </div>
             <Progress value={(studentStats.completedChapters / Math.max(studentStats.totalChapters, 1)) * 100} className="h-2" />
             <p className="text-sm text-muted-foreground mt-2">
-              {studentStats.completedChapters} من {studentStats.totalChapters} مكتمل
+              {tHome("completedOf", { completed: studentStats.completedChapters, total: studentStats.totalChapters })}
             </p>
           </div>
 
@@ -385,13 +394,13 @@ const CoursesPage = async () => {
                 <Trophy className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">الاختبارات المكتملة</p>
+                <p className="text-sm text-muted-foreground">{tHome("completedQuizzes")}</p>
                 <p className="text-2xl font-bold">{studentStats.completedQuizzes}</p>
               </div>
             </div>
             <Progress value={(studentStats.completedQuizzes / Math.max(studentStats.totalQuizzes, 1)) * 100} className="h-2" />
             <p className="text-sm text-muted-foreground mt-2">
-              {studentStats.completedQuizzes} من {studentStats.totalQuizzes} مكتمل
+              {tHome("completedOf", { completed: studentStats.completedQuizzes, total: studentStats.totalQuizzes })}
             </p>
           </div>
         </div>
@@ -399,7 +408,7 @@ const CoursesPage = async () => {
 
             {/* My Courses Section */}
       <div>
-        <h2 className="text-xl font-semibold mb-6">كورساتي</h2>
+        <h2 className="text-xl font-semibold mb-6">{t("pages.myCourses")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {coursesWithProgress.map((course) => (
             <div
@@ -409,7 +418,7 @@ const CoursesPage = async () => {
               <div className="relative w-full aspect-[16/9]">
                 <Image
                   src={course.imageUrl || "/placeholder.png"}
-                  alt={course.title}
+                  alt={localizedField(course as Record<string, unknown>, "title", locale)}
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-300"
                 />
@@ -423,20 +432,20 @@ const CoursesPage = async () => {
               <div className="p-6">
                 <div className="mb-4">
                   <h3 className="text-xl font-bold mb-3 line-clamp-2 min-h-[3rem] text-gray-900">
-                    {course.title}
+                    {localizedField(course as Record<string, unknown>, "title", locale)}
                   </h3>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground mb-4">
                     <div className="flex items-center gap-1">
                       <BookOpen className="h-4 w-4" />
                       <span>
-                        {course.chapters.length} {course.chapters.length === 1 ? "فصل" : "فصول"}
+                        {course.chapters.length} {course.chapters.length === 1 ? tCommon("chapter") : tCommon("chapters")}
                       </span>
                     </div>
                     {course.quizzes.length > 0 && (
                       <div className="flex items-center gap-1">
                         <span className="w-1 h-1 bg-muted-foreground rounded-full"></span>
                         <span>
-                          {course.quizzes.length} {course.quizzes.length === 1 ? "اختبار" : "اختبارات"}
+                          {course.quizzes.length} {course.quizzes.length === 1 ? tCommon("quiz") : tCommon("quizzes")}
                         </span>
                       </div>
                     )}
@@ -446,7 +455,7 @@ const CoursesPage = async () => {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground font-medium">التقدم</span>
+                      <span className="text-muted-foreground font-medium">{tCourse("progress")}</span>
                       <span className="font-bold text-brand">{Math.round(course.progress)}%</span>
                     </div>
                     <div className="relative">
@@ -465,7 +474,7 @@ const CoursesPage = async () => {
                     asChild
                   >
                     <Link href={course.chapters.length > 0 ? `/courses/${course.id}/chapters/${course.chapters[0].id}` : `/courses/${course.id}`}>
-                      متابعة التعلم
+                      {tCourse("continueLearning")}
                     </Link>
                   </Button>
                 </div>
@@ -477,11 +486,11 @@ const CoursesPage = async () => {
           <div className="text-center py-16">
             <div className="bg-muted/50 rounded-2xl p-8 max-w-md mx-auto">
               <BookOpen className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">لم تقم بشراء أي كورسات بعد</h3>
-              <p className="text-muted-foreground mb-6">ابدأ رحلة التعلم بشراء أول كورس لك</p>
+              <h3 className="text-lg font-semibold mb-2">{tHome("noCoursesYet")}</h3>
+              <p className="text-muted-foreground mb-6">{tHome("noCoursesHint")}</p>
               <Button asChild className="bg-brand hover:bg-brand/90 text-white font-semibold">
                 <Link href="/dashboard/search">
-                  استكشف الكورسات المتاحة
+                  {tHome("exploreCourses")}
                 </Link>
               </Button>
             </div>

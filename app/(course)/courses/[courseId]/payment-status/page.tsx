@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import axios from "axios";
@@ -15,6 +16,8 @@ interface PaymentResponse {
 }
 
 const PaymentStatusPage = () => {
+  const t = useTranslations("course");
+  const tNav = useTranslations("nav");
   const router = useRouter();
   const searchParams = useSearchParams();
   const routeParams = useParams();
@@ -145,9 +148,9 @@ const PaymentStatusPage = () => {
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <h1 className="text-2xl font-bold mb-2">يتم تأكيد عملية الدفع</h1>
-          <p className="text-muted-foreground">الرجاء الأنتظار حتي نتأكد من عملية الدفع</p>
-          <p className="text-xs text-muted-foreground mt-2">محاولة التأكد: {checkCount}/{MAX_CHECKS}</p>
+<h1 className="text-2xl font-bold mb-2">{t("paymentConfirming")}</h1>
+<p className="text-muted-foreground">{t("paymentConfirmingHint")}</p>
+<p className="text-xs text-muted-foreground mt-2">{t("paymentCheckAttempt", { current: checkCount, max: MAX_CHECKS })}</p>
         </div>
       </div>
     );
@@ -158,13 +161,13 @@ const PaymentStatusPage = () => {
       <div className="h-full flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
           <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">تم الدفع بنجاح!</h1>
+<h1 className="text-2xl font-bold mb-2">{t("paymentSuccessTitle")}</h1>
           <p className="text-muted-foreground mb-6">
-              تمت معالجة دفعتك بنجاح. لديك الآن وصول كامل إلى الكورس.
+{t("paymentSuccessDesc")}
           </p>
           <Button asChild size="lg" className="w-full">
             <Link href="/dashboard">
-              لوحة التحكم
+{tNav("dashboard")}
             </Link>
           </Button>
         </div>
@@ -176,12 +179,12 @@ const PaymentStatusPage = () => {
     <div className="h-full flex items-center justify-center">
       <div className="text-center max-w-md mx-auto p-6">
         <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-        <h1 className="text-2xl font-bold mb-2">فشل الدفع</h1>
+<h1 className="text-2xl font-bold mb-2">{t("paymentFailedTitle")}</h1>
         <p className="text-muted-foreground mb-6">
-          تم إلغاء عملية الدفع أو فشلت. يمكنك المحاولة مرة أخرى.
+{t("paymentFailedDesc")}
         </p>
         <Button onClick={handleTryAgain} size="lg" className="w-full">
-          حاول مرة اخري
+{t("tryAgain")}
         </Button>
       </div>
     </div>
