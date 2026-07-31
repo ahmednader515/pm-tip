@@ -17,6 +17,11 @@ import { UploadDropzone } from "@/lib/uploadthing";
 import { parseCorrectAnswer } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import * as XLSX from "xlsx";
+import {
+    parseMatchingOptions,
+    parseMatchingCorrect,
+    type MatchingOptions,
+} from "@/lib/quiz-question";
 // Needed for correct non-English decoding in legacy .xls files (BIFF)
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -64,10 +69,10 @@ interface Question {
     text: string;
     textEn?: string;
     imageUrl?: string;
-    type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER";
-    options?: string[];
-    optionsEn?: string[];
-    correctAnswer: string | number | number[]; // TRUE_FALSE/SHORT_ANSWER: string; MULTIPLE_CHOICE: number[] (indices)
+    type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER" | "DROPDOWN" | "MATCHING";
+    options?: string[] | MatchingOptions;
+    optionsEn?: string[] | MatchingOptions;
+    correctAnswer: string | number | number[] | Record<string, string>;
     explanation?: string;
     explanationEn?: string;
     points: number;
@@ -80,6 +85,33 @@ interface CourseItem {
     position: number;
     isPublished: boolean;
 }
+
+const defaultMatchingOptions = (): MatchingOptions => ({
+    prompts: ["", ""],
+    answers: ["", "", ""],
+});
+
+const asMatchingOptions = (value: Question["options"] | Question["optionsEn"]): MatchingOptions => {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+        return {
+            prompts: Array.isArray(value.prompts) ? [...value.prompts] : ["", ""],
+            answers: Array.isArray(value.answers) ? [...value.answers] : ["", "", ""],
+        };
+    }
+    return defaultMatchingOptions();
+};
+
+const asOptionList = (value: Question["options"] | Question["optionsEn"]): string[] => {
+    if (Array.isArray(value)) return [...value];
+    return ["", ""];
+};
+
+const asCorrectMap = (value: Question["correctAnswer"]): Record<string, string> => {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+        return { ...(value as Record<string, string>) };
+    }
+    return {};
+};
 
 const EditQuizPage = () => {
     const router = useRouter();
@@ -119,7 +151,58 @@ const EditQuizPage = () => {
         if (v === "MCQ" || v === "MULTIPLE_CHOICE" || v === "MULTIPLE" || v === "CHOICE" || v === "اختيار" || v === "اختيار من متعدد") return "MULTIPLE_CHOICE";
         if (v === "TF" || v === "TRUE_FALSE" || v === "TRUE/FALSE" || v === "صح/خطأ" || v === "صح" || v === "خطأ") return "TRUE_FALSE";
         if (v === "SHORT" || v === "SHORT_ANSWER" || v === "SA" || v === "إجابة قصيرة") return "SHORT_ANSWER";
+        if (v === "DROPDOWN" || v === "DD" || v === "قائمة منسدلة" || v === "منسدلة") return "DROPDOWN";
+        if (v === "MATCHING" || v === "MATCH" || v === "توصيل" || v === "مطابقة") return "MATCHING";
         return "MULTIPLE_CHOICE";
+    };
+
+    const parseMatchingOptionsExcel = (raw: unknown): MatchingOptions => {
+        const s = String(raw ?? "").trim();
+        if (!s) return { prompts: [], answers: [] };
+        try {
+            const parsed = JSON.parse(s);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return {
+                    prompts: Array.isArray(parsed.prompts) ? parsed.prompts.map(String).map((x) => x.trim()).filter(Boolean) : [],
+                    answers: Array.isArray(parsed.answers) ? parsed.answers.map(String).map((x) => x.trim()).filter(Boolean) : [],
+                };
+            }
+        } catch {
+            /* ignore */
+        }
+        const promptsMatch = s.match(/prompts\s*:\s*([\s\S]*?)(?:\s*;;\s*answers\s*:|$)/i);
+        const answersMatch = s.match(/answers\s*:\s*([\s\S]*?)$/i);
+        const splitPipe = (x: string) =>
+            x
+                .split("|")
+                .map((t) => t.trim())
+                .filter(Boolean);
+        return {
+            prompts: promptsMatch ? splitPipe(promptsMatch[1]) : [],
+            answers: answersMatch ? splitPipe(answersMatch[1]) : [],
+        };
+    };
+
+    const parseMatchingCorrectExcel = (raw: unknown): Record<string, string> => {
+        const s = String(raw ?? "").trim();
+        if (!s) return {};
+        try {
+            const parsed = JSON.parse(s);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return parseMatchingCorrect(parsed);
+            }
+        } catch {
+            /* ignore */
+        }
+        const out: Record<string, string> = {};
+        for (const part of s.split(/[\|\;\n]+/g)) {
+            const eq = part.indexOf("=");
+            if (eq <= 0) continue;
+            const k = part.slice(0, eq).trim();
+            const v = part.slice(eq + 1).trim();
+            if (k && v) out[k] = v;
+        }
+        return out;
     };
 
     const splitOptions = (raw: unknown): string[] => {
@@ -200,21 +283,29 @@ const EditQuizPage = () => {
                 const pointsRaw = get(row, "points");
                 const points = Math.max(1, Number(pointsRaw) ? Math.floor(Number(pointsRaw)) : 1);
                 const explanation = String(get(row, "explanation") ?? "").trim();
+                const explanationEn = String(get(row, "explanationEn") ?? "").trim();
+                const textEn = String(get(row, "textEn") ?? "").trim();
 
-                if (type === "MULTIPLE_CHOICE") {
+                if (type === "MULTIPLE_CHOICE" || type === "DROPDOWN") {
                     const options = splitOptions(get(row, "options"));
                     if (options.length < 2) {
                         errors.push(t("rowOptionsMin", { row: rowNum }));
                         return;
                     }
-                    const correct = parseCorrectIndices(get(row, "correct"), options);
+                    const optionsEnRaw = splitOptions(get(row, "optionsEn"));
+                    const optionsEn = options.map((_, i) => optionsEnRaw[i] ?? "");
+                    let correct = parseCorrectIndices(get(row, "correct"), options);
+                    if (type === "DROPDOWN") correct = [correct[0] ?? 0];
                     imported.push({
                         id: `import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}`,
                         text,
+                        textEn,
                         type,
                         options,
+                        optionsEn,
                         correctAnswer: correct,
                         explanation,
+                        explanationEn,
                         points,
                     });
                 } else if (type === "TRUE_FALSE") {
@@ -222,10 +313,39 @@ const EditQuizPage = () => {
                     imported.push({
                         id: `import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}`,
                         text,
+                        textEn,
                         type,
                         correctAnswer: correct,
                         explanation,
+                        explanationEn,
                         points,
+                    });
+                } else if (type === "MATCHING") {
+                    const matching = parseMatchingOptionsExcel(get(row, "options"));
+                    const matchingEn = parseMatchingOptionsExcel(get(row, "optionsEn"));
+                    if (matching.prompts.length < 2) {
+                        errors.push(t("rowOptionsMin", { row: rowNum }));
+                        return;
+                    }
+                    if (matching.answers.length < matching.prompts.length) {
+                        errors.push(t("rowOptionsMin", { row: rowNum }));
+                        return;
+                    }
+                    const correct = parseMatchingCorrectExcel(get(row, "correct"));
+                    imported.push({
+                        id: `import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}`,
+                        text,
+                        textEn,
+                        type,
+                        options: matching,
+                        optionsEn: {
+                            prompts: matching.prompts.map((_, i) => matchingEn.prompts[i] ?? ""),
+                            answers: matching.answers.map((_, i) => matchingEn.answers[i] ?? ""),
+                        },
+                        correctAnswer: correct,
+                        explanation,
+                        explanationEn,
+                        points: matching.prompts.length,
                     });
                 } else {
                     const correct = String(get(row, "correct") ?? "").trim();
@@ -236,9 +356,11 @@ const EditQuizPage = () => {
                     imported.push({
                         id: `import-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}`,
                         text,
+                        textEn,
                         type,
                         correctAnswer: correct,
                         explanation,
+                        explanationEn,
                         points,
                     });
                 }
@@ -280,8 +402,8 @@ const EditQuizPage = () => {
             const response = await fetch("/api/courses");
             if (response.ok) {
                 const data = await response.json();
-                const teacherCourses = data.filter((course: Course) => course.isPublished);
-                setCourses(teacherCourses);
+                const list = Array.isArray(data) ? data : [];
+                setCourses(list.filter((course: Course) => course.isPublished));
             }
         } catch (error) {
             console.error("Error fetching courses:", error);
@@ -301,22 +423,51 @@ const EditQuizPage = () => {
                 setQuizMaxAttempts(quiz.maxAttempts || 1);
                 setSelectedCourse(quiz.courseId);
                 
-                // Convert stored correctAnswer (string or JSON array of option texts) to indices for multiple choice
+                // Convert stored correctAnswer to editor-friendly shapes
                 const processedQuestions = quiz.questions.map((question: Question) => {
-                    if (question.type === "MULTIPLE_CHOICE" && question.options) {
+                    if ((question.type === "MULTIPLE_CHOICE" || question.type === "DROPDOWN") && Array.isArray(question.options)) {
                         const validOptions = question.options.filter((o: string) => o.trim() !== "");
                         const correctTexts = parseCorrectAnswer(String(question.correctAnswer));
                         const indices = correctTexts
-                            .map((t) => validOptions.indexOf(t))
+                            .map((txt) => validOptions.indexOf(txt))
                             .filter((i) => i >= 0);
+                        const optsEn = Array.isArray(question.optionsEn)
+                            ? question.optionsEn
+                            : question.options.map(() => "");
                         return {
                             ...question,
                             textEn: question.textEn ?? "",
                             explanationEn: question.explanationEn ?? "",
-                            optionsEn: question.optionsEn?.length
-                                ? question.optionsEn
+                            optionsEn: optsEn.length
+                                ? optsEn
                                 : question.options.map(() => ""),
-                            correctAnswer: indices.length ? indices : [0]
+                            correctAnswer:
+                                question.type === "DROPDOWN"
+                                    ? [indices[0] ?? 0]
+                                    : indices.length
+                                    ? indices
+                                    : [0],
+                        };
+                    }
+                    if (question.type === "MATCHING") {
+                        const opts = asMatchingOptions(question.options);
+                        const optsEnRaw = asMatchingOptions(question.optionsEn);
+                        const prompts = opts.prompts.length >= 2 ? opts.prompts : ["", ""];
+                        const answers =
+                            opts.answers.length >= Math.max(3, prompts.length)
+                                ? opts.answers
+                                : [...opts.answers, ...Array(Math.max(0, Math.max(3, prompts.length) - opts.answers.length)).fill("")];
+                        return {
+                            ...question,
+                            textEn: question.textEn ?? "",
+                            explanationEn: question.explanationEn ?? "",
+                            options: { prompts, answers },
+                            optionsEn: {
+                                prompts: prompts.map((_, i) => optsEnRaw.prompts[i] ?? ""),
+                                answers: answers.map((_, i) => optsEnRaw.answers[i] ?? ""),
+                            },
+                            correctAnswer: parseMatchingCorrect(question.correctAnswer as string | Record<string, string>),
+                            points: prompts.filter((p) => p.trim()).length || question.points || 2,
                         };
                     }
                     return {
@@ -497,9 +648,9 @@ const EditQuizPage = () => {
             }
 
             // Validate correct answer
-            if (question.type === "MULTIPLE_CHOICE") {
-                const validOptions = question.options?.filter(option => option.trim() !== "") || [];
-                if (validOptions.length === 0) {
+            if (question.type === "MULTIPLE_CHOICE" || question.type === "DROPDOWN") {
+                const validOptions = asOptionList(question.options).filter((option) => option.trim() !== "");
+                if (validOptions.length < 2) {
                     validationErrors.push(t("validationOptionsMin", { n: i + 1 }));
                     continue;
                 }
@@ -508,8 +659,15 @@ const EditQuizPage = () => {
                     : typeof question.correctAnswer === "number"
                     ? [question.correctAnswer]
                     : [];
-                if (correctArr.length === 0 || correctArr.some((idx) => idx < 0 || idx >= validOptions.length)) {
+                if (
+                    correctArr.length === 0 ||
+                    correctArr.some((idx) => typeof idx !== "number" || idx < 0 || idx >= validOptions.length)
+                ) {
                     validationErrors.push(t("validationCorrectMcq", { n: i + 1 }));
+                    continue;
+                }
+                if (question.type === "DROPDOWN" && correctArr.length !== 1) {
+                    validationErrors.push(t("validationCorrectDropdown", { n: i + 1 }));
                     continue;
                 }
             } else if (question.type === "TRUE_FALSE") {
@@ -522,10 +680,31 @@ const EditQuizPage = () => {
                     validationErrors.push(t("validationCorrectSa", { n: i + 1 }));
                     continue;
                 }
+            } else if (question.type === "MATCHING") {
+                const matching = parseMatchingOptions(asMatchingOptions(question.options));
+                if (matching.prompts.length < 2 || matching.answers.length < matching.prompts.length) {
+                    validationErrors.push(t("validationOptionsMin", { n: i + 1 }));
+                    continue;
+                }
+                const correct = parseMatchingCorrect(asCorrectMap(question.correctAnswer));
+                const used = new Set<string>();
+                let matchingOk = true;
+                for (const prompt of matching.prompts) {
+                    const ans = correct[prompt];
+                    if (!ans || !matching.answers.includes(ans) || used.has(ans)) {
+                        matchingOk = false;
+                        break;
+                    }
+                    used.add(ans);
+                }
+                if (!matchingOk) {
+                    validationErrors.push(t("validationMatching", { n: i + 1 }));
+                    continue;
+                }
             }
 
             // Check if points are valid
-            if (question.points <= 0) {
+            if (question.type !== "MATCHING" && question.points <= 0) {
                 validationErrors.push(t("validationPoints", { n: i + 1 }));
                 continue;
             }
@@ -544,15 +723,49 @@ const EditQuizPage = () => {
 
         // Clean up questions before sending
         const cleanedQuestions = questions.map(question => {
-            if (question.type === "MULTIPLE_CHOICE" && question.options) {
-                const optsEn = question.optionsEn || [];
+            if ((question.type === "MULTIPLE_CHOICE" || question.type === "DROPDOWN") && Array.isArray(question.options)) {
+                const optsEn = asOptionList(question.optionsEn);
                 const paired = question.options
                     .map((option, i) => ({ option, en: optsEn[i] ?? "" }))
                     .filter(({ option }) => option.trim() !== "");
+                const correctArr = Array.isArray(question.correctAnswer)
+                    ? question.correctAnswer
+                    : typeof question.correctAnswer === "number"
+                    ? [question.correctAnswer]
+                    : [0];
                 return {
                     ...question,
                     options: paired.map((p) => p.option),
                     optionsEn: paired.map((p) => p.en),
+                    correctAnswer:
+                        question.type === "DROPDOWN"
+                            ? [correctArr[0] ?? 0]
+                            : correctArr,
+                };
+            }
+            if (question.type === "MATCHING") {
+                const opts = asMatchingOptions(question.options);
+                const optsEn = asMatchingOptions(question.optionsEn);
+                const prompts = opts.prompts.map((p) => p.trim()).filter(Boolean);
+                const answers = opts.answers.map((a) => a.trim()).filter(Boolean);
+                const promptsEn = opts.prompts.map((_, i) => (optsEn.prompts[i] ?? "").trim());
+                const answersEn = opts.answers.map((_, i) => (optsEn.answers[i] ?? "").trim());
+                const correct = parseMatchingCorrect(asCorrectMap(question.correctAnswer));
+                const cleanedCorrect: Record<string, string> = {};
+                for (const prompt of prompts) {
+                    if (correct[prompt] && answers.includes(correct[prompt])) {
+                        cleanedCorrect[prompt] = correct[prompt];
+                    }
+                }
+                return {
+                    ...question,
+                    options: { prompts, answers },
+                    optionsEn: {
+                        prompts: prompts.map((_, i) => promptsEn[i] ?? ""),
+                        answers: answers.map((_, i) => answersEn[i] ?? ""),
+                    },
+                    correctAnswer: cleanedCorrect,
+                    points: prompts.length,
                 };
             }
             return question;
@@ -583,7 +796,7 @@ const EditQuizPage = () => {
                 router.push(dashboardPath);
             } else {
                 const error = await response.json();
-                toast.error(error.message || t("updateError"));
+                toast.error(error.error || error.message || t("updateError"));
             }
         } catch (error) {
             console.error("Error updating quiz:", error);
@@ -620,10 +833,20 @@ const EditQuizPage = () => {
             meta.push({ kind: "text", qi });
             texts.push(q.explanation || "");
             meta.push({ kind: "explanation", qi });
-            if (q.type === "MULTIPLE_CHOICE") {
-                (q.options || []).forEach((opt, oi) => {
+            if (q.type === "MULTIPLE_CHOICE" || q.type === "DROPDOWN") {
+                asOptionList(q.options).forEach((opt, oi) => {
                     texts.push(opt || "");
                     meta.push({ kind: "option", qi, oi });
+                });
+            } else if (q.type === "MATCHING") {
+                const matching = asMatchingOptions(q.options);
+                matching.prompts.forEach((p, oi) => {
+                    texts.push(p || "");
+                    meta.push({ kind: "matchPrompt", qi, oi });
+                });
+                matching.answers.forEach((a, oi) => {
+                    texts.push(a || "");
+                    meta.push({ kind: "matchAnswer", qi, oi });
                 });
             }
         });
@@ -641,10 +864,28 @@ const EditQuizPage = () => {
             if (!res.ok) throw new Error("translate failed");
             const data = await res.json();
             const translations: string[] = data.translations || [];
-            const nextQuestions = questions.map((q) => ({
-                ...q,
-                optionsEn: q.optionsEn ? [...q.optionsEn] : (q.options || []).map(() => ""),
-            }));
+            const nextQuestions = questions.map((q) => {
+                if (q.type === "MATCHING") {
+                    const ar = asMatchingOptions(q.options);
+                    const en = asMatchingOptions(q.optionsEn);
+                    return {
+                        ...q,
+                        optionsEn: {
+                            prompts: ar.prompts.map((_, i) => en.prompts[i] ?? ""),
+                            answers: ar.answers.map((_, i) => en.answers[i] ?? ""),
+                        },
+                    };
+                }
+                if (q.type === "MULTIPLE_CHOICE" || q.type === "DROPDOWN") {
+                    const opts = asOptionList(q.options);
+                    const optsEn = asOptionList(q.optionsEn);
+                    return {
+                        ...q,
+                        optionsEn: opts.map((_, i) => optsEn[i] ?? ""),
+                    };
+                }
+                return { ...q };
+            });
             translations.forEach((tr, i) => {
                 const m = meta[i];
                 if (!m) return;
@@ -653,10 +894,20 @@ const EditQuizPage = () => {
                 else if (m.kind === "text" && m.qi != null) nextQuestions[m.qi].textEn = tr;
                 else if (m.kind === "explanation" && m.qi != null) nextQuestions[m.qi].explanationEn = tr;
                 else if (m.kind === "option" && m.qi != null && m.oi != null) {
-                    const opts = nextQuestions[m.qi].optionsEn || [];
+                    const opts = asOptionList(nextQuestions[m.qi].optionsEn);
                     while (opts.length <= m.oi) opts.push("");
                     opts[m.oi] = tr;
                     nextQuestions[m.qi].optionsEn = opts;
+                } else if (m.kind === "matchPrompt" && m.qi != null && m.oi != null) {
+                    const en = asMatchingOptions(nextQuestions[m.qi].optionsEn);
+                    while (en.prompts.length <= m.oi) en.prompts.push("");
+                    en.prompts[m.oi] = tr;
+                    nextQuestions[m.qi].optionsEn = en;
+                } else if (m.kind === "matchAnswer" && m.qi != null && m.oi != null) {
+                    const en = asMatchingOptions(nextQuestions[m.qi].optionsEn);
+                    while (en.answers.length <= m.oi) en.answers.push("");
+                    en.answers[m.oi] = tr;
+                    nextQuestions[m.qi].optionsEn = en;
                 }
             });
             setQuestions(nextQuestions);
@@ -670,8 +921,9 @@ const EditQuizPage = () => {
 
     const addOption = (questionIndex: number) => {
         const question = questions[questionIndex];
-        const currentOptions = question.options || ["", ""];
-        const currentOptionsEn = question.optionsEn || currentOptions.map(() => "");
+        const currentOptions = asOptionList(question.options);
+        const currentOptionsEn = asOptionList(question.optionsEn);
+        while (currentOptionsEn.length < currentOptions.length) currentOptionsEn.push("");
         const updated = {
             ...question,
             options: [...currentOptions, ""],
@@ -684,10 +936,10 @@ const EditQuizPage = () => {
 
     const removeOption = (questionIndex: number, optionIndex: number) => {
         const question = questions[questionIndex];
-        const currentOptions = question.options || ["", ""];
+        const currentOptions = asOptionList(question.options);
         if (currentOptions.length <= 2) return;
         const newOptions = currentOptions.filter((_, i) => i !== optionIndex);
-        const newOptionsEn = (question.optionsEn || []).filter((_, i) => i !== optionIndex);
+        const newOptionsEn = asOptionList(question.optionsEn).filter((_, i) => i !== optionIndex);
         const currentCorrect = Array.isArray(question.correctAnswer)
             ? question.correctAnswer
             : typeof question.correctAnswer === "number"
@@ -700,7 +952,12 @@ const EditQuizPage = () => {
             ...question,
             options: newOptions,
             optionsEn: newOptionsEn,
-            correctAnswer: newCorrect.length ? newCorrect : [0],
+            correctAnswer:
+                question.type === "DROPDOWN"
+                    ? [newCorrect[0] ?? 0]
+                    : newCorrect.length
+                    ? newCorrect
+                    : [0],
         };
         const updatedQuestions = [...questions];
         updatedQuestions[questionIndex] = updated;
@@ -709,6 +966,10 @@ const EditQuizPage = () => {
 
     const toggleCorrectOption = (questionIndex: number, optionIndex: number) => {
         const question = questions[questionIndex];
+        if (question.type === "DROPDOWN") {
+            updateQuestion(questionIndex, "correctAnswer", [optionIndex]);
+            return;
+        }
         const current = Array.isArray(question.correctAnswer)
             ? question.correctAnswer
             : typeof question.correctAnswer === "number"
@@ -722,10 +983,190 @@ const EditQuizPage = () => {
         updateQuestion(questionIndex, "correctAnswer", newCorrect);
     };
 
+    const applyQuestionTypeChange = (index: number, value: Question["type"]) => {
+        const question = questions[index];
+        const updatedQuestions = [...questions];
+        let next: Question = { ...question, type: value };
+
+        if (value === "MULTIPLE_CHOICE" || value === "DROPDOWN") {
+            const opts = Array.isArray(question.options) ? asOptionList(question.options) : ["", ""];
+            const optsEn = Array.isArray(question.optionsEn)
+                ? asOptionList(question.optionsEn)
+                : opts.map(() => "");
+            let correct: number[] = Array.isArray(question.correctAnswer)
+                ? (question.correctAnswer as number[]).filter((n) => typeof n === "number")
+                : typeof question.correctAnswer === "number"
+                ? [question.correctAnswer]
+                : [0];
+            if (value === "DROPDOWN") {
+                correct = [correct[0] ?? 0];
+            } else if (!correct.length) {
+                correct = [0];
+            }
+            next = {
+                ...next,
+                options: opts.length >= 2 ? opts : ["", ""],
+                optionsEn: optsEn.length >= 2 ? optsEn : ["", ""],
+                correctAnswer: correct,
+                points: question.points > 0 ? question.points : 1,
+            };
+        } else if (value === "TRUE_FALSE") {
+            next = {
+                ...next,
+                options: undefined,
+                optionsEn: undefined,
+                correctAnswer:
+                    question.correctAnswer === "true" || question.correctAnswer === "false"
+                        ? question.correctAnswer
+                        : "true",
+                points: question.points > 0 ? question.points : 1,
+            };
+        } else if (value === "SHORT_ANSWER") {
+            next = {
+                ...next,
+                options: undefined,
+                optionsEn: undefined,
+                correctAnswer: typeof question.correctAnswer === "string" ? question.correctAnswer : "",
+                points: question.points > 0 ? question.points : 1,
+            };
+        } else if (value === "MATCHING") {
+            next = {
+                ...next,
+                options: defaultMatchingOptions(),
+                optionsEn: defaultMatchingOptions(),
+                correctAnswer: {},
+                points: 2,
+            };
+        }
+
+        updatedQuestions[index] = next;
+        setQuestions(updatedQuestions);
+    };
+
     const updateQuestion = (index: number, field: keyof Question, value: any) => {
+        if (field === "type") {
+            applyQuestionTypeChange(index, value as Question["type"]);
+            return;
+        }
         const updatedQuestions = [...questions];
         updatedQuestions[index] = { ...updatedQuestions[index], [field]: value };
         setQuestions(updatedQuestions);
+    };
+
+    const updateMatchingField = (
+        questionIndex: number,
+        side: "prompts" | "answers",
+        lang: "ar" | "en",
+        itemIndex: number,
+        value: string
+    ) => {
+        const question = questions[questionIndex];
+        const opts = asMatchingOptions(question.options);
+        const optsEn = asMatchingOptions(question.optionsEn);
+        let correct = asCorrectMap(question.correctAnswer);
+
+        if (lang === "ar") {
+            const list = [...opts[side]];
+            const oldValue = list[itemIndex] ?? "";
+            list[itemIndex] = value;
+            if (side === "prompts" && oldValue !== value) {
+                if (oldValue && oldValue in correct) {
+                    correct = { ...correct, [value]: correct[oldValue] };
+                    delete correct[oldValue];
+                }
+            } else if (side === "answers" && oldValue !== value) {
+                const remapped: Record<string, string> = {};
+                for (const [k, v] of Object.entries(correct)) {
+                    remapped[k] = v === oldValue ? value : v;
+                }
+                correct = remapped;
+            }
+            const updatedQuestions = [...questions];
+            updatedQuestions[questionIndex] = {
+                ...question,
+                options: { ...opts, [side]: list },
+                correctAnswer: correct,
+                points: side === "prompts" ? list.filter((p) => p.trim()).length || 2 : question.points,
+            };
+            setQuestions(updatedQuestions);
+        } else {
+            const list = [...optsEn[side]];
+            list[itemIndex] = value;
+            updateQuestion(questionIndex, "optionsEn", { ...optsEn, [side]: list });
+        }
+    };
+
+    const addMatchingItem = (questionIndex: number, side: "prompts" | "answers") => {
+        const question = questions[questionIndex];
+        const opts = asMatchingOptions(question.options);
+        const optsEn = asMatchingOptions(question.optionsEn);
+        const updatedQuestions = [...questions];
+        updatedQuestions[questionIndex] = {
+            ...question,
+            options: { ...opts, [side]: [...opts[side], ""] },
+            optionsEn: { ...optsEn, [side]: [...optsEn[side], ""] },
+            points: side === "prompts" ? opts.prompts.length + 1 : question.points,
+        };
+        setQuestions(updatedQuestions);
+    };
+
+    const removeMatchingItem = (questionIndex: number, side: "prompts" | "answers", itemIndex: number) => {
+        const question = questions[questionIndex];
+        const opts = asMatchingOptions(question.options);
+        const optsEn = asMatchingOptions(question.optionsEn);
+        if (side === "prompts" && opts.prompts.length <= 2) return;
+        if (side === "answers" && opts.answers.length <= Math.max(2, opts.prompts.length)) return;
+
+        const removedAr = opts[side][itemIndex] ?? "";
+        const nextSide = opts[side].filter((_, i) => i !== itemIndex);
+        const nextSideEn = optsEn[side].filter((_, i) => i !== itemIndex);
+        let correct = asCorrectMap(question.correctAnswer);
+        if (side === "prompts") {
+            const { [removedAr]: _, ...rest } = correct;
+            correct = rest;
+        } else {
+            const remapped: Record<string, string> = {};
+            for (const [k, v] of Object.entries(correct)) {
+                if (v !== removedAr) remapped[k] = v;
+            }
+            correct = remapped;
+        }
+        const updatedQuestions = [...questions];
+        updatedQuestions[questionIndex] = {
+            ...question,
+            options: { ...opts, [side]: nextSide },
+            optionsEn: { ...optsEn, [side]: nextSideEn },
+            correctAnswer: correct,
+            points: side === "prompts" ? nextSide.filter((p) => p.trim()).length || 2 : question.points,
+        };
+        setQuestions(updatedQuestions);
+    };
+
+    const setMatchingCorrect = (questionIndex: number, promptIndex: number, answer: string) => {
+        const question = questions[questionIndex];
+        const opts = asMatchingOptions(question.options);
+        const prompt = opts.prompts[promptIndex] ?? "";
+        if (!prompt.trim()) return;
+        const correct = asCorrectMap(question.correctAnswer);
+        for (const [k, v] of Object.entries(correct)) {
+            if (v === answer && k !== prompt) delete correct[k];
+        }
+        correct[prompt] = answer;
+        updateQuestion(questionIndex, "correctAnswer", correct);
+    };
+
+    const isMatchingIncomplete = (question: Question) => {
+        const matching = parseMatchingOptions(asMatchingOptions(question.options));
+        if (matching.prompts.length < 2) return true;
+        if (matching.answers.length < matching.prompts.length) return true;
+        const correct = parseMatchingCorrect(asCorrectMap(question.correctAnswer));
+        const used = new Set<string>();
+        for (const prompt of matching.prompts) {
+            const ans = correct[prompt];
+            if (!ans || !matching.answers.includes(ans) || used.has(ans)) return true;
+            used.add(ans);
+        }
+        return false;
     };
 
     const removeQuestion = (index: number) => {
@@ -1014,22 +1455,34 @@ const EditQuizPage = () => {
                                     e.currentTarget.value = "";
                                 }}
                             />
+                            <a
+                                href="/quiz-import-example.xlsx"
+                                download
+                                className="text-sm text-primary underline underline-offset-2"
+                            >
+                                {t("downloadSampleExcel")}
+                            </a>
                         </div>
 
                         <div className="text-sm text-muted-foreground space-y-2">
                             <div className="font-medium text-foreground">{t("excelFormatTitle")}</div>
                             <ul className="list-disc pr-5 space-y-1">
                                 <li><span className="font-medium">text</span>: {t("excelColText")}</li>
+                                <li><span className="font-medium">textEn</span>: {t("excelColTextEn")}</li>
                                 <li><span className="font-medium">type</span>: {t("excelColType")}</li>
                                 <li><span className="font-medium">points</span>: {t("excelColPoints")}</li>
                                 <li><span className="font-medium">options</span>: {t("excelColOptions")}</li>
+                                <li><span className="font-medium">optionsEn</span>: {t("excelColOptionsEn")}</li>
                                 <li><span className="font-medium">correct</span>:</li>
                                 <ul className="list-disc pr-5">
                                     <li>{t("excelColCorrectMcq")}</li>
+                                    <li>{t("excelColCorrectDropdown")}</li>
+                                    <li>{t("excelColCorrectMatching")}</li>
                                     <li>{t("excelColCorrectTf")}</li>
                                     <li>{t("excelColCorrectSa")}</li>
                                 </ul>
                                 <li><span className="font-medium">explanation</span>: {t("excelColExplanation")}</li>
+                                <li><span className="font-medium">explanationEn</span>: {t("excelColExplanationEn")}</li>
                             </ul>
                             <div className="text-xs">
                                 {t("excelNote")}
@@ -1053,14 +1506,16 @@ const EditQuizPage = () => {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <CardTitle className="text-lg">{t("questionN", { n: index + 1 })}</CardTitle>
-                                        {(!question.text.trim() || 
-                                            (question.type === "MULTIPLE_CHOICE" &&
-                                             (!question.options || question.options.filter(opt => opt.trim() !== "").length === 0)) ||
+                                        {(!question.text.trim() ||
+                                            ((question.type === "MULTIPLE_CHOICE" || question.type === "DROPDOWN") &&
+                                             (asOptionList(question.options).filter((opt) => opt.trim() !== "").length < 2)) ||
                                             (question.type === "MULTIPLE_CHOICE" && (!Array.isArray(question.correctAnswer) || question.correctAnswer.length === 0)) ||
+                                            (question.type === "DROPDOWN" && (!Array.isArray(question.correctAnswer) || question.correctAnswer.length !== 1)) ||
                                             (question.type === "TRUE_FALSE" &&
-                                             (typeof question.correctAnswer !== 'string' || (question.correctAnswer !== "true" && question.correctAnswer !== "false"))) ||
+                                             (typeof question.correctAnswer !== "string" || (question.correctAnswer !== "true" && question.correctAnswer !== "false"))) ||
                                             (question.type === "SHORT_ANSWER" &&
-                                             (typeof question.correctAnswer !== 'string' || question.correctAnswer.trim() === ""))) && (
+                                             (typeof question.correctAnswer !== "string" || question.correctAnswer.trim() === "")) ||
+                                            (question.type === "MATCHING" && isMatchingIncomplete(question))) && (
                                             <Badge variant="destructive" className="text-xs">
                                                 {t("incomplete")}
                                             </Badge>
@@ -1167,15 +1622,7 @@ const EditQuizPage = () => {
                                         <Label>{t("questionTypeLabel")}</Label>
                                         <Select
                                             value={question.type}
-                                            onValueChange={(value: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER") => {
-                                                if (value === "MULTIPLE_CHOICE" && !Array.isArray(question.correctAnswer)) {
-                                                    const updated = [...questions];
-                                                    updated[index] = { ...updated[index], type: value, correctAnswer: [0] };
-                                                    setQuestions(updated);
-                                                } else {
-                                                    updateQuestion(index, "type", value);
-                                                }
-                                            }}
+                                            onValueChange={(value: Question["type"]) => updateQuestion(index, "type", value)}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue />
@@ -1184,30 +1631,44 @@ const EditQuizPage = () => {
                                                 <SelectItem value="MULTIPLE_CHOICE">{t("typeMultipleChoice")}</SelectItem>
                                                 <SelectItem value="TRUE_FALSE">{t("typeTrueFalse")}</SelectItem>
                                                 <SelectItem value="SHORT_ANSWER">{t("typeShortAnswer")}</SelectItem>
+                                                <SelectItem value="DROPDOWN">{t("typeDropdown")}</SelectItem>
+                                                <SelectItem value="MATCHING">{t("typeMatching")}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
                                         <Label>{t("pointsLabel")}</Label>
-                                        <Input
-                                            type="number"
-                                            value={question.points}
-                                            onChange={(e) => updateQuestion(index, "points", parseInt(e.target.value))}
-                                            min="1"
-                                        />
+                                        {question.type === "MATCHING" ? (
+                                            <>
+                                                <Input
+                                                    type="number"
+                                                    value={asMatchingOptions(question.options).prompts.filter((p) => p.trim()).length || 2}
+                                                    disabled
+                                                    min="1"
+                                                />
+                                                <p className="text-xs text-muted-foreground">{t("matchingPointsHint")}</p>
+                                            </>
+                                        ) : (
+                                            <Input
+                                                type="number"
+                                                value={question.points}
+                                                onChange={(e) => updateQuestion(index, "points", parseInt(e.target.value))}
+                                                min="1"
+                                            />
+                                        )}
                                     </div>
                                 </div>
 
-                                {question.type === "MULTIPLE_CHOICE" && (
+                                {(question.type === "MULTIPLE_CHOICE" || question.type === "DROPDOWN") && (
                                     <div className="space-y-2">
                                         <Label>{tCommon("arabicLabel")} — {t("optionsLabel")}</Label>
-                                        {(question.options || ["", ""]).map((option, optionIndex) => (
+                                        {asOptionList(question.options).map((option, optionIndex) => (
                                             <div key={`${question.id}-option-${optionIndex}`} className="flex items-center gap-2">
                                                 <Input
                                                     className="flex-1"
                                                     value={option}
                                                     onChange={(e) => {
-                                                        const opts = question.options || ["", ""];
+                                                        const opts = asOptionList(question.options);
                                                         const newOptions = [...opts];
                                                         newOptions[optionIndex] = e.target.value;
                                                         updateQuestion(index, "options", newOptions);
@@ -1218,7 +1679,13 @@ const EditQuizPage = () => {
                                                     <Checkbox
                                                         id={`correct-${question.id}-${optionIndex}`}
                                                         checked={(Array.isArray(question.correctAnswer) ? question.correctAnswer : []).includes(optionIndex)}
-                                                        onCheckedChange={() => toggleCorrectOption(index, optionIndex)}
+                                                        onCheckedChange={() => {
+                                                            if (question.type === "DROPDOWN") {
+                                                                updateQuestion(index, "correctAnswer", [optionIndex]);
+                                                            } else {
+                                                                toggleCorrectOption(index, optionIndex);
+                                                            }
+                                                        }}
                                                     />
                                                     <Label htmlFor={`correct-${question.id}-${optionIndex}`} className="text-xs cursor-pointer">{t("correctShort")}</Label>
                                                 </div>
@@ -1228,7 +1695,7 @@ const EditQuizPage = () => {
                                                     size="icon"
                                                     className="shrink-0 text-muted-foreground hover:text-destructive"
                                                     onClick={() => removeOption(index, optionIndex)}
-                                                    disabled={(question.options || ["", ""]).length <= 2}
+                                                    disabled={asOptionList(question.options).length <= 2}
                                                     title={t("deleteOption")}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
@@ -1236,13 +1703,13 @@ const EditQuizPage = () => {
                                             </div>
                                         ))}
                                         <Label className="pt-2 block">{tCommon("englishLabel")} — {tEditor("optionsEn")}</Label>
-                                        {(question.options || ["", ""]).map((_, optionIndex) => (
+                                        {asOptionList(question.options).map((_, optionIndex) => (
                                             <Input
                                                 key={`${question.id}-option-en-${optionIndex}`}
                                                 dir="ltr"
-                                                value={(question.optionsEn || [])[optionIndex] ?? ""}
+                                                value={asOptionList(question.optionsEn)[optionIndex] ?? ""}
                                                 onChange={(e) => {
-                                                    const optsEn = [...(question.optionsEn || [])];
+                                                    const optsEn = asOptionList(question.optionsEn);
                                                     while (optsEn.length <= optionIndex) optsEn.push("");
                                                     optsEn[optionIndex] = e.target.value;
                                                     updateQuestion(index, "optionsEn", optsEn);
@@ -1262,6 +1729,120 @@ const EditQuizPage = () => {
                                         </Button>
                                     </div>
                                 )}
+
+                                {question.type === "MATCHING" && (() => {
+                                    const matching = asMatchingOptions(question.options);
+                                    const matchingEn = asMatchingOptions(question.optionsEn);
+                                    const correct = asCorrectMap(question.correctAnswer);
+                                    return (
+                                        <div className="space-y-4">
+                                            <p className="text-sm text-muted-foreground">{t("matchingPointsHint")}</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label>{t("promptsColumn")}</Label>
+                                                    {matching.prompts.map((prompt, promptIndex) => (
+                                                        <div key={`${question.id}-prompt-${promptIndex}`} className="space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <Input
+                                                                    className="flex-1"
+                                                                    value={prompt}
+                                                                    onChange={(e) => updateMatchingField(index, "prompts", "ar", promptIndex, e.target.value)}
+                                                                    placeholder={t("promptN", { n: promptIndex + 1 })}
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                                                                    onClick={() => removeMatchingItem(index, "prompts", promptIndex)}
+                                                                    disabled={matching.prompts.length <= 2}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                            <Input
+                                                                dir="ltr"
+                                                                value={matchingEn.prompts[promptIndex] ?? ""}
+                                                                onChange={(e) => updateMatchingField(index, "prompts", "en", promptIndex, e.target.value)}
+                                                                placeholder={t("promptNEn", { n: promptIndex + 1 })}
+                                                            />
+                                                            <div className="space-y-1">
+                                                                <Label className="text-xs">{t("correctMatch")}</Label>
+                                                                <Select
+                                                                    value={correct[prompt] || ""}
+                                                                    onValueChange={(val) => setMatchingCorrect(index, promptIndex, val)}
+                                                                    disabled={!prompt.trim()}
+                                                                >
+                                                                    <SelectTrigger>
+                                                                        <SelectValue placeholder={t("selectMatchAnswer")} />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {matching.answers.filter((a) => a.trim()).map((answer, ai) => (
+                                                                            <SelectItem key={`${question.id}-match-ans-${promptIndex}-${ai}`} value={answer}>
+                                                                                {answer}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => addMatchingItem(index, "prompts")}
+                                                        className="gap-1"
+                                                    >
+                                                        <Plus className="h-4 w-4" />
+                                                        {t("addPrompt")}
+                                                    </Button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>{t("answersColumn")}</Label>
+                                                    {matching.answers.map((answer, answerIndex) => (
+                                                        <div key={`${question.id}-answer-${answerIndex}`} className="space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <Input
+                                                                    className="flex-1"
+                                                                    value={answer}
+                                                                    onChange={(e) => updateMatchingField(index, "answers", "ar", answerIndex, e.target.value)}
+                                                                    placeholder={t("answerN", { n: answerIndex + 1 })}
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                                                                    onClick={() => removeMatchingItem(index, "answers", answerIndex)}
+                                                                    disabled={matching.answers.length <= Math.max(2, matching.prompts.length)}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                            <Input
+                                                                dir="ltr"
+                                                                value={matchingEn.answers[answerIndex] ?? ""}
+                                                                onChange={(e) => updateMatchingField(index, "answers", "en", answerIndex, e.target.value)}
+                                                                placeholder={t("answerNEn", { n: answerIndex + 1 })}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => addMatchingItem(index, "answers")}
+                                                        className="gap-1"
+                                                    >
+                                                        <Plus className="h-4 w-4" />
+                                                        {t("addAnswer")}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
                                 {question.type === "TRUE_FALSE" && (
                                     <div className="space-y-2">

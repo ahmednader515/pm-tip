@@ -11,6 +11,11 @@ import { ArrowLeft, CheckCircle, XCircle, FileText, User, Calendar, Clock } from
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { parseQuizOptions, parseCorrectAnswer } from "@/lib/utils";
+import {
+    parseMatchingCorrect,
+    parseMatchingOptions,
+    type MatchingOptions,
+} from "@/lib/quiz-question";
 
 interface QuizResult {
     id: string;
@@ -36,14 +41,17 @@ interface QuizResult {
 interface QuizAnswer {
     id: string;
     questionId: string;
-    answer: string;
+    studentAnswer?: string;
+    answer?: string;
     isCorrect: boolean;
-    points: number;
+    pointsEarned?: number;
+    points?: number;
     question: {
         text: string;
         type: string;
         points: number;
-        options?: string[];
+        options?: string[] | MatchingOptions | string | null;
+        optionsEn?: string | MatchingOptions | null;
         correctAnswer?: string;
         imageUrl?: string;
     };
@@ -71,16 +79,24 @@ const QuizResultDetailPage = ({ params }: { params: Promise<{ resultId: string }
             const response = await fetch(`/api/teacher/quiz-results/${resultId}`);
             if (response.ok) {
                 const data = await response.json();
-                // Parse options for multiple choice questions
                 const parsedData = {
                     ...data,
-                    answers: data.answers.map((answer: any) => ({
-                        ...answer,
-                        question: {
-                            ...answer.question,
-                            options: parseQuizOptions(answer.question.options)
+                    answers: data.answers.map((answer: any) => {
+                        const type = answer.question?.type;
+                        let options: string[] | MatchingOptions | null = null;
+                        if (type === "MATCHING") {
+                            options = parseMatchingOptions(answer.question.options);
+                        } else if (type === "MULTIPLE_CHOICE" || type === "DROPDOWN") {
+                            options = parseQuizOptions(answer.question.options);
                         }
-                    }))
+                        return {
+                            ...answer,
+                            question: {
+                                ...answer.question,
+                                options,
+                            },
+                        };
+                    }),
                 };
                 setResult(parsedData);
             } else {
@@ -115,51 +131,129 @@ const QuizResultDetailPage = ({ params }: { params: Promise<{ resultId: string }
         return { variant: "destructive" as const, text: t("gradeWeak") };
     };
 
+    const getStudentAnswerRaw = (answer: QuizAnswer) =>
+        answer.studentAnswer ?? answer.answer ?? "";
+
+    const getPointsEarned = (answer: QuizAnswer) =>
+        answer.pointsEarned ?? answer.points ?? 0;
+
     const renderQuestionChoices = (answer: QuizAnswer) => {
-        if (answer.question.type === "MULTIPLE_CHOICE" && answer.question.options) {
-            const correctSet = new Set(parseCorrectAnswer(answer.question.correctAnswer));
-            const rawStudent = (answer as any).studentAnswer ?? (answer as any).answer ?? "";
-            let studentSet = new Set<string>();
-            try {
-                const parsed = JSON.parse(rawStudent);
-                if (Array.isArray(parsed)) {
-                    studentSet = new Set(parsed.filter((x: unknown) => typeof x === "string"));
-                } else {
-                    if (rawStudent) studentSet = new Set([rawStudent]);
-                }
-            } catch {
-                if (rawStudent) studentSet = new Set([rawStudent]);
-            }
-            return (
-                <div className="space-y-2">
-                    <h5 className="font-medium text-sm">{t("options")}</h5>
-                    <div className="space-y-1">
-                        {answer.question.options.map((option: string, optionIndex: number) => {
-                            const isStudent = studentSet.has(option);
-                            const isCorrect = correctSet.has(option);
-                            let bg = "bg-gray-50";
-                            if (isStudent && isCorrect) bg = "bg-green-50 border-green-200";
-                            else if (isStudent && !isCorrect) bg = "bg-red-50 border-red-200";
-                            else if (isCorrect) bg = "bg-green-50 border-green-200";
-                            return (
-                                <div key={optionIndex} className={`p-2 rounded border ${bg}`}>
-                                    <span className="text-sm">
-                                        {optionIndex + 1}. {option}
-                                        {isStudent && (
-                                            <Badge variant={answer.isCorrect ? "default" : "destructive"} className="mr-2">{t("studentAnswerBadge")}</Badge>
-                                        )}
-                                        {isCorrect && !isStudent && (
-                                            <Badge variant="default" className="mr-2">{t("correctAnswerBadge")}</Badge>
-                                        )}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            );
+        const isChoiceType =
+            answer.question.type === "MULTIPLE_CHOICE" ||
+            answer.question.type === "DROPDOWN";
+        if (!isChoiceType || !Array.isArray(answer.question.options)) {
+            return null;
         }
-        return null;
+        const correctSet = new Set(parseCorrectAnswer(answer.question.correctAnswer));
+        const rawStudent = getStudentAnswerRaw(answer);
+        let studentSet = new Set<string>();
+        try {
+            const parsed = JSON.parse(rawStudent);
+            if (Array.isArray(parsed)) {
+                studentSet = new Set(parsed.filter((x: unknown) => typeof x === "string"));
+            } else if (rawStudent) {
+                studentSet = new Set([rawStudent]);
+            }
+        } catch {
+            if (rawStudent) studentSet = new Set([rawStudent]);
+        }
+        return (
+            <div className="space-y-2">
+                <h5 className="font-medium text-sm">{t("options")}</h5>
+                <div className="space-y-1">
+                    {answer.question.options.map((option: string, optionIndex: number) => {
+                        const isStudent = studentSet.has(option);
+                        const isCorrect = correctSet.has(option);
+                        let bg = "bg-gray-50";
+                        if (isStudent && isCorrect) bg = "bg-green-50 border-green-200";
+                        else if (isStudent && !isCorrect) bg = "bg-red-50 border-red-200";
+                        else if (isCorrect) bg = "bg-green-50 border-green-200";
+                        return (
+                            <div key={optionIndex} className={`p-2 rounded border ${bg}`}>
+                                <span className="text-sm">
+                                    {optionIndex + 1}. {option}
+                                    {isStudent && (
+                                        <Badge
+                                            variant={answer.isCorrect ? "default" : "destructive"}
+                                            className="mr-2"
+                                        >
+                                            {t("studentAnswerBadge")}
+                                        </Badge>
+                                    )}
+                                    {isCorrect && !isStudent && (
+                                        <Badge variant="default" className="mr-2">
+                                            {t("correctAnswerBadge")}
+                                        </Badge>
+                                    )}
+                                    {isCorrect && isStudent && (
+                                        <Badge variant="default" className="mr-2">
+                                            {t("correctAnswerBadge")}
+                                        </Badge>
+                                    )}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    const renderMatchingPairs = (answer: QuizAnswer) => {
+        if (answer.question.type !== "MATCHING") return null;
+        const correctMap = parseMatchingCorrect(answer.question.correctAnswer);
+        const studentMap = parseMatchingCorrect(getStudentAnswerRaw(answer));
+        const matching = parseMatchingOptions(
+            answer.question.options as MatchingOptions | string | null
+        );
+        const prompts =
+            matching.prompts.length > 0
+                ? matching.prompts
+                : Array.from(new Set([...Object.keys(correctMap), ...Object.keys(studentMap)]));
+
+        return (
+            <div className="space-y-2">
+                <h5 className="font-medium text-sm">{t("options")}</h5>
+                <div className="space-y-2">
+                    {prompts.map((prompt, i) => {
+                        const studentAns = studentMap[prompt] || "";
+                        const correctAns = correctMap[prompt] || "";
+                        const pairCorrect =
+                            !!studentAns && !!correctAns && studentAns.trim() === correctAns.trim();
+                        return (
+                            <div key={`${prompt}-${i}`} className="space-y-1 rounded border p-2">
+                                <div className="text-sm font-medium auto-dir">{prompt}</div>
+                                <div
+                                    className={`text-sm p-2 rounded border auto-dir ${
+                                        studentAns
+                                            ? pairCorrect
+                                                ? "bg-green-50 border-green-200"
+                                                : "bg-red-50 border-red-200"
+                                            : "bg-gray-50"
+                                    }`}
+                                >
+                                    → {studentAns || "—"}
+                                    <Badge
+                                        variant={pairCorrect ? "default" : "destructive"}
+                                        className="mr-2"
+                                    >
+                                        {t("studentAnswerBadge")}
+                                    </Badge>
+                                </div>
+                                {(!studentAns || !pairCorrect) && correctAns && (
+                                    <div className="text-sm p-2 rounded border bg-green-50 border-green-200 auto-dir">
+                                        → {correctAns}
+                                        <Badge variant="default" className="mr-2">
+                                            {t("correctAnswerBadge")}
+                                        </Badge>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
     };
 
     if (loading) {
@@ -298,7 +392,11 @@ const QuizResultDetailPage = ({ params }: { params: Promise<{ resultId: string }
                                         </div>
                                     )}
                                     
-                                    {answer.question.type === "MULTIPLE_CHOICE" && renderQuestionChoices(answer)}
+                                    {(answer.question.type === "MULTIPLE_CHOICE" ||
+                                        answer.question.type === "DROPDOWN") &&
+                                        renderQuestionChoices(answer)}
+
+                                    {answer.question.type === "MATCHING" && renderMatchingPairs(answer)}
                                     
                                     {answer.question.type === "TRUE_FALSE" && (
                                         <div className="space-y-2">
@@ -328,7 +426,7 @@ const QuizResultDetailPage = ({ params }: { params: Promise<{ resultId: string }
                                             <div className="mt-2">
                                                 <span className="text-sm font-medium">{t("studentAnswerBadge")}: </span>
                                                 <Badge variant={answer.isCorrect ? "default" : "destructive"}>
-                                                    {((answer as any).studentAnswer ?? (answer as any).answer) === "true" ? t("trueLabel") : t("incorrect")}
+                                                    {getStudentAnswerRaw(answer) === "true" ? t("trueLabel") : t("falseLabel")}
                                                 </Badge>
                                             </div>
                                         </div>
@@ -347,7 +445,7 @@ const QuizResultDetailPage = ({ params }: { params: Promise<{ resultId: string }
                                                         ? "bg-green-50 border-green-200" 
                                                         : "bg-red-50 border-red-200"
                                                 }`}>
-                                                    {(answer as any).studentAnswer ?? (answer as any).answer}
+                                                    {getStudentAnswerRaw(answer)}
                                                 </p>
                                             </div>
                                         </div>
@@ -357,7 +455,7 @@ const QuizResultDetailPage = ({ params }: { params: Promise<{ resultId: string }
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm font-medium">{t("pointsEarnedColon")}</span>
                                             <span className={`text-sm font-medium ${answer.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                                                {answer.points} / {answer.question.points}
+                                                {getPointsEarned(answer)} / {answer.question.points}
                                             </span>
                                         </div>
                                     </div>

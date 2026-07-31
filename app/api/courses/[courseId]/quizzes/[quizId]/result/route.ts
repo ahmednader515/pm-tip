@@ -44,6 +44,8 @@ export async function GET(
                                 type: true,
                                 points: true,
                                 position: true,
+                                options: true,
+                                optionsEn: true,
                                 imageUrl: true,
                                 explanation: true,
                                 explanationEn: true,

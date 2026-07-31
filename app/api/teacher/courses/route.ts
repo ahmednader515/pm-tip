@@ -9,12 +9,13 @@ export async function GET() {
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
-    if (session.user.role !== "TEACHER") {
+    const role = session.user.role;
+    if (role !== "TEACHER" && role !== "ADMIN") {
       return new NextResponse("Forbidden", { status: 403 });
     }
 
     const courses = await db.course.findMany({
-      where: { userId: session.user.id },
+      where: role === "ADMIN" ? undefined : { userId: session.user.id },
       select: { id: true, title: true, titleEn: true, imageUrl: true, isPublished: true },
       orderBy: { createdAt: "desc" },
     });

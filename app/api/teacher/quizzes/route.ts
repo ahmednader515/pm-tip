@@ -1,22 +1,33 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { parseQuizOptions, stringifyQuizOptions } from "@/lib/utils";
+import { parseQuizOptions } from "@/lib/utils";
+import {
+    buildQuestionCreateData,
+    isOptionListType,
+    parseMatchingCorrect,
+    parseMatchingOptions,
+    parseQuestionOptionsForClient,
+} from "@/lib/quiz-question";
 
 export async function GET(req: Request) {
     try {
-        const { userId } = await auth();
+        const { userId, user } = await auth();
 
         if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const canManageAll = user?.role === "TEACHER" || user?.role === "ADMIN";
+
         const quizzes = await db.quiz.findMany({
-            where: {
-                course: {
-                    userId: userId
-                }
-            },
+            where: canManageAll
+                ? undefined
+                : {
+                    course: {
+                        userId: userId
+                    }
+                },
             include: {
                 course: {
                     select: {
@@ -46,12 +57,11 @@ export async function GET(req: Request) {
             }
         });
 
-        // Parse options for multiple choice questions
         const quizzesWithParsedOptions = quizzes.map(quiz => ({
             ...quiz,
             questions: quiz.questions.map(question => ({
                 ...question,
-                options: parseQuizOptions(question.options)
+                options: parseQuestionOptionsForClient(question.type, question.options),
             }))
         }));
 
@@ -73,7 +83,9 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const isAdmin = user?.role === "ADMIN";
+        if (user?.role !== "TEACHER" && user?.role !== "ADMIN") {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
 
         // Validate required fields
         if (!title || !title.trim()) {
@@ -84,23 +96,17 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Course ID is required" }, { status: 400 });
         }
 
-        // Verify the course exists and belongs to the teacher (unless admin)
         const course = await db.course.findUnique({
             where: {
                 id: courseId,
             },
             select: {
                 id: true,
-                userId: true,
             },
         });
 
         if (!course) {
             return NextResponse.json({ error: "Course not found" }, { status: 404 });
-        }
-
-        if (!isAdmin && course.userId !== userId) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
         }
 
         // Get the next position if not provided
@@ -132,7 +138,7 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: `Question ${i + 1}: Text is required` }, { status: 400 });
             }
 
-            if (question.type === "MULTIPLE_CHOICE") {
+            if (isOptionListType(question.type)) {
                 if (!question.options || question.options.length < 2) {
                     return NextResponse.json({ error: `Question ${i + 1}: At least 2 options are required` }, { status: 400 });
                 }
@@ -142,7 +148,6 @@ export async function POST(req: Request) {
                     return NextResponse.json({ error: `Question ${i + 1}: At least 2 valid options are required` }, { status: 400 });
                 }
 
-                // For multiple choice, correctAnswer can be a single index (number) or array of indices (number[])
                 const indices = Array.isArray(question.correctAnswer)
                     ? question.correctAnswer
                     : typeof question.correctAnswer === "number"
@@ -150,6 +155,29 @@ export async function POST(req: Request) {
                     : [];
                 if (indices.length === 0 || indices.some((idx: number) => typeof idx !== "number" || idx < 0 || idx >= validOptions.length)) {
                     return NextResponse.json({ error: `Question ${i + 1}: At least one valid correct answer index is required` }, { status: 400 });
+                }
+                if (question.type === "DROPDOWN" && indices.length !== 1) {
+                    return NextResponse.json({ error: `Question ${i + 1}: Dropdown requires exactly one correct answer` }, { status: 400 });
+                }
+            } else if (question.type === "MATCHING") {
+                const matching = parseMatchingOptions(question.options);
+                if (matching.prompts.length < 2) {
+                    return NextResponse.json({ error: `Question ${i + 1}: Matching requires at least 2 prompts` }, { status: 400 });
+                }
+                if (matching.answers.length < matching.prompts.length) {
+                    return NextResponse.json({ error: `Question ${i + 1}: Matching needs at least as many answers as prompts` }, { status: 400 });
+                }
+                const correct = parseMatchingCorrect(question.correctAnswer);
+                const usedAnswers = new Set<string>();
+                for (const prompt of matching.prompts) {
+                    const ans = correct[prompt];
+                    if (!ans || !matching.answers.includes(ans)) {
+                        return NextResponse.json({ error: `Question ${i + 1}: Each prompt needs a unique correct answer` }, { status: 400 });
+                    }
+                    if (usedAnswers.has(ans)) {
+                        return NextResponse.json({ error: `Question ${i + 1}: Correct answers must be unique across prompts` }, { status: 400 });
+                    }
+                    usedAnswers.add(ans);
                 }
             } else if (question.type === "TRUE_FALSE") {
                 if (!question.correctAnswer || (question.correctAnswer !== "true" && question.correctAnswer !== "false")) {
@@ -161,7 +189,7 @@ export async function POST(req: Request) {
                 }
             }
 
-            if (!question.points || question.points <= 0) {
+            if (question.type !== "MATCHING" && (!question.points || question.points <= 0)) {
                 return NextResponse.json({ error: `Question ${i + 1}: Points must be greater than 0` }, { status: 400 });
             }
         }
@@ -184,29 +212,6 @@ export async function POST(req: Request) {
             courseId,
             timer: timer || null, // Timer in minutes, null means no time limit
             maxAttempts: maxAttempts || 1, // Default to 1 attempt if not specified
-                            questions: {
-                    create: questions.map((question: any, index: number) => {
-                        let correctAnswerValue: string = String(question.correctAnswer ?? "");
-                        if (question.type === "MULTIPLE_CHOICE") {
-                            const validOptions = question.options.filter((option: string) => option && option.trim() !== "");
-                            const indices = Array.isArray(question.correctAnswer)
-                                ? question.correctAnswer
-                                : [question.correctAnswer];
-                            const optionTexts = indices.map((i: number) => validOptions[i]).filter(Boolean);
-                            correctAnswerValue = optionTexts.length ? JSON.stringify(optionTexts) : validOptions[0] ?? "";
-                        }
-                        return {
-                            text: question.text,
-                            type: question.type,
-                            options: question.type === "MULTIPLE_CHOICE" ? stringifyQuizOptions(question.options) : null,
-                            correctAnswer: correctAnswerValue,
-                            explanation: question.explanation?.trim() || null,
-                            points: question.points,
-                            imageUrl: question.imageUrl || null,
-                            position: index + 1
-                        };
-                    })
-                }
         };
         
         console.log("Final quiz data:", JSON.stringify(quizData, null, 2));
@@ -251,42 +256,9 @@ export async function POST(req: Request) {
         // Now add the questions separately
         if (questions.length > 0) {
             await db.question.createMany({
-                data: questions.map((question: any, index: number) => {
-                    let correctAnswerValue: string = String(question.correctAnswer ?? "");
-                    if (question.type === "MULTIPLE_CHOICE") {
-                        const validOptions = question.options.filter((option: string) => option && option.trim() !== "");
-                        const indices = Array.isArray(question.correctAnswer)
-                            ? question.correctAnswer
-                            : [question.correctAnswer];
-                        const optionTexts = indices.map((i: number) => validOptions[i]).filter(Boolean);
-                        correctAnswerValue = optionTexts.length ? JSON.stringify(optionTexts) : validOptions[0] ?? "";
-                    }
-                    return {
-                        text: question.text,
-                        textEn:
-                            question.textEn == null || String(question.textEn).trim() === ""
-                                ? null
-                                : String(question.textEn).trim(),
-                        type: question.type,
-                        options: question.type === "MULTIPLE_CHOICE" ? stringifyQuizOptions(question.options) : null,
-                        optionsEn:
-                            question.type === "MULTIPLE_CHOICE" && Array.isArray(question.optionsEn)
-                                ? stringifyQuizOptions(question.optionsEn)
-                                : question.type === "MULTIPLE_CHOICE" && typeof question.optionsEn === "string"
-                                ? question.optionsEn.trim() || null
-                                : null,
-                        correctAnswer: correctAnswerValue,
-                        explanation: question.explanation?.trim() || null,
-                        explanationEn:
-                            question.explanationEn == null || String(question.explanationEn).trim() === ""
-                                ? null
-                                : String(question.explanationEn).trim(),
-                        points: question.points,
-                        imageUrl: question.imageUrl || null,
-                        quizId: quiz.id,
-                        position: index + 1
-                    };
-                })
+                data: questions.map((question: any, index: number) =>
+                    buildQuestionCreateData(question, index, quiz.id)
+                ),
             });
         }
         
@@ -311,13 +283,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Failed to create quiz" }, { status: 500 });
         }
 
-        // Parse options for the response
         const quizWithParsedOptions = {
             ...quizWithQuestions,
             questions: quizWithQuestions.questions.map(question => ({
                 ...question,
-                options: parseQuizOptions(question.options),
-                optionsEn: parseQuizOptions(question.optionsEn),
+                options: parseQuestionOptionsForClient(question.type, question.options),
+                optionsEn: parseQuestionOptionsForClient(question.type, question.optionsEn),
             }))
         };
 

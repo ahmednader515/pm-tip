@@ -10,6 +10,12 @@ import { CheckCircle, XCircle, Award } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/config";
 import { localizedField } from "@/lib/localized";
+import {
+    parseMatchingCorrect,
+    parseMatchingOptions,
+    type MatchingOptions,
+} from "@/lib/quiz-question";
+import { getMatchingDisplay } from "@/components/quiz/matching-question";
 
 interface QuizAnswer {
     questionId: string;
@@ -22,6 +28,8 @@ interface QuizAnswer {
         textEn?: string | null;
         type: string;
         points: number;
+        options?: string | MatchingOptions | null;
+        optionsEn?: string | MatchingOptions | null;
         imageUrl?: string | null;
         explanation?: string | null;
         explanationEn?: string | null;
@@ -171,21 +179,71 @@ export default function QuizResultPage({
 
     const canRetakeQuiz = quiz && result && (result.attemptNumber < quiz.maxAttempts);
 
-    const formatAnswer = (answer: string, questionType: string) => {
+    const formatMatchingLines = (
+        answer: string,
+        options?: string | MatchingOptions | null,
+        optionsEn?: string | MatchingOptions | null
+    ): string[] => {
+        const map = parseMatchingCorrect(answer);
+        const matching = parseMatchingOptions(options);
+        const matchingEn = parseMatchingOptions(optionsEn);
+        const display = getMatchingDisplay(matching, matchingEn, locale);
+        const promptLabel = (p: string) => {
+            const i = matching.prompts.indexOf(p);
+            return i >= 0 ? display.promptsDisplay[i] : p;
+        };
+        const answerLabel = (a: string) => {
+            const i = matching.answers.indexOf(a);
+            return i >= 0 ? display.answersDisplay[i] : a;
+        };
+        return Object.entries(map).map(
+            ([prompt, ans]) => `${promptLabel(prompt)} → ${answerLabel(ans)}`
+        );
+    };
+
+    const formatAnswer = (
+        answer: string,
+        questionType: string,
+        question?: QuizAnswer["question"]
+    ): string | string[] => {
         if (questionType === "TRUE_FALSE") {
             return answer === "true" ? tCommon("true") : tCommon("false");
         }
-        if (questionType === "MULTIPLE_CHOICE") {
+        if (questionType === "MULTIPLE_CHOICE" || questionType === "DROPDOWN") {
             try {
                 const parsed = JSON.parse(answer);
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     return parsed.join(locale === "ar" ? "، " : ", ");
                 }
             } catch {
-                // single value
+                // single value (DROPDOWN correctAnswer is often a plain string)
             }
+            return answer;
+        }
+        if (questionType === "MATCHING") {
+            return formatMatchingLines(answer, question?.options, question?.optionsEn);
         }
         return answer;
+    };
+
+    const renderFormattedAnswer = (
+        answer: string,
+        questionType: string,
+        question?: QuizAnswer["question"],
+        className?: string
+    ) => {
+        const formatted = formatAnswer(answer, questionType, question);
+        if (Array.isArray(formatted)) {
+            if (formatted.length === 0) return <p className={className}>{answer || "—"}</p>;
+            return (
+                <ul className={`list-none space-y-1 ${className || ""}`}>
+                    {formatted.map((line, i) => (
+                        <li key={i} className="auto-dir">{line}</li>
+                    ))}
+                </ul>
+            );
+        }
+        return <p className={className}>{formatted}</p>;
     };
 
     if (loading) {
@@ -308,18 +366,25 @@ export default function QuizResultPage({
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                             <div>
                                                 <span className="font-medium">{t("yourAnswer")}</span>
-                                                <p className="text-muted-foreground">
-                                                    {answer.studentAnswer 
-                                                        ? formatAnswer(answer.studentAnswer, answer.question.type)
-                                                        : t("noAnswer")
-                                                    }
-                                                </p>
+                                                {answer.studentAnswer ? (
+                                                    renderFormattedAnswer(
+                                                        answer.studentAnswer,
+                                                        answer.question.type,
+                                                        answer.question,
+                                                        "text-muted-foreground"
+                                                    )
+                                                ) : (
+                                                    <p className="text-muted-foreground">{t("noAnswer")}</p>
+                                                )}
                                             </div>
                                             <div>
                                                 <span className="font-medium">{t("correctAnswerColon")}</span>
-                                                <p className="text-primary">
-                                                    {formatAnswer(answer.correctAnswer, answer.question.type)}
-                                                </p>
+                                                {renderFormattedAnswer(
+                                                    answer.correctAnswer,
+                                                    answer.question.type,
+                                                    answer.question,
+                                                    "text-primary"
+                                                )}
                                             </div>
                                         </div>
                                         {localizedField(

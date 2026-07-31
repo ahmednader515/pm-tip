@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { hasCourseAccess } from "@/lib/course-access";
 import { parseCorrectAnswer, parseQuizOptions } from "@/lib/utils";
+import { parseMatchingCorrect, parseMatchingOptions } from "@/lib/quiz-question";
 
 export async function GET(
     req: Request,
@@ -54,7 +55,7 @@ export async function GET(
         let displayAnswer: string;
         let displayAnswerEn: string | null = null;
 
-        if (type === "MULTIPLE_CHOICE") {
+        if (type === "MULTIPLE_CHOICE" || type === "DROPDOWN") {
             const arr = parseCorrectAnswer(question.correctAnswer);
             const arOpts = parseQuizOptions(question.options);
             const enOpts = parseQuizOptions(question.optionsEn);
@@ -65,6 +66,20 @@ export async function GET(
                 return en?.trim() ? en : opt;
             });
             displayAnswerEn = enArr.some((v, i) => v !== arr[i]) ? enArr.join(", ") : null;
+        } else if (type === "MATCHING") {
+            const correct = parseMatchingCorrect(question.correctAnswer);
+            const matching = parseMatchingOptions(question.options);
+            const matchingEn = parseMatchingOptions(question.optionsEn);
+            const linesAr = Object.entries(correct).map(([p, a]) => `${p} → ${a}`);
+            displayAnswer = linesAr.join(" | ");
+            const linesEn = Object.entries(correct).map(([p, a]) => {
+                const pi = matching.prompts.findIndex((x) => x.trim() === p.trim());
+                const ai = matching.answers.findIndex((x) => x.trim() === a.trim());
+                const pd = pi >= 0 && matchingEn.prompts[pi]?.trim() ? matchingEn.prompts[pi] : p;
+                const ad = ai >= 0 && matchingEn.answers[ai]?.trim() ? matchingEn.answers[ai] : a;
+                return `${pd} → ${ad}`;
+            });
+            displayAnswerEn = linesEn.some((v, i) => v !== linesAr[i]) ? linesEn.join(" | ") : null;
         } else if (type === "TRUE_FALSE") {
             // Return raw "true"/"false" so the client can localize with common.true/false
             displayAnswer = question.correctAnswer ?? "";

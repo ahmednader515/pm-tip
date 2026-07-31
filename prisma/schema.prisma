@@ -292,8 +292,8 @@ model Question {
     id String @id @default(uuid())
     text String @db.Text
     textEn String? @db.Text
-    type String // "MULTIPLE_CHOICE", "TRUE_FALSE", "SHORT_ANSWER"
-    options String? @db.Text // JSON string for multiple choice options
+    type String // "MULTIPLE_CHOICE", "TRUE_FALSE", "SHORT_ANSWER", "DROPDOWN", "MATCHING"
+    options String? @db.Text // JSON array for MCQ/DROPDOWN; JSON {prompts,answers} for MATCHING
     optionsEn String? @db.Text
     correctAnswer String @db.Text
     explanation String? @db.Text // Teacher's explanation for the correct answer

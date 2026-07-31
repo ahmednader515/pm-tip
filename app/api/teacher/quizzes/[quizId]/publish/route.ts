@@ -16,18 +16,16 @@ export async function PATCH(
 
         const { isPublished } = await req.json();
 
-        // Verify access: admin or owner teacher
+        if (user?.role !== "TEACHER" && user?.role !== "ADMIN") {
+            return new NextResponse("Forbidden", { status: 403 });
+        }
+
         const quiz = await db.quiz.findFirst({
-            where: user?.role === "ADMIN"
-                ? { id: resolvedParams.quizId }
-                : {
-                    id: resolvedParams.quizId,
-                    course: { userId: userId },
-                },
+            where: { id: resolvedParams.quizId },
         });
 
         if (!quiz) {
-            return new NextResponse("Quiz not found or unauthorized", { status: 404 });
+            return new NextResponse("Quiz not found", { status: 404 });
         }
 
         const updatedQuiz = await db.quiz.update({

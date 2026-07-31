@@ -1,7 +1,13 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { parseQuizOptions, stringifyQuizOptions } from "@/lib/utils";
+import {
+    buildQuestionCreateData,
+    isOptionListType,
+    parseMatchingCorrect,
+    parseMatchingOptions,
+    parseQuestionOptionsForClient,
+} from "@/lib/quiz-question";
 
 export async function GET(
     req: Request,
@@ -17,9 +23,10 @@ export async function GET(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // Get the quiz; if not admin, ensure it belongs to the teacher
+        const canManageAll = user?.role === "TEACHER" || user?.role === "ADMIN";
+
         const quiz = await db.quiz.findFirst({
-            where: user?.role === "ADMIN"
+            where: canManageAll
                 ? { id: resolvedParams.quizId }
                 : {
                     id: resolvedParams.quizId,
@@ -63,25 +70,13 @@ export async function GET(
 
         console.log("[TEACHER_QUIZ_GET] Quiz found:", quiz.id, "with", quiz.questions.length, "questions");
 
-        // Parse options for multiple choice questions
         const quizWithParsedOptions = {
             ...quiz,
-            questions: quiz.questions.map(question => {
-                try {
-                    return {
-                        ...question,
-                        options: parseQuizOptions(question.options),
-                        optionsEn: parseQuizOptions(question.optionsEn),
-                    };
-                } catch (parseError) {
-                    console.log("[TEACHER_QUIZ_GET] Error parsing options for question:", question.id, parseError);
-                    return {
-                        ...question,
-                        options: question.options ? JSON.parse(question.options) : null,
-                        optionsEn: question.optionsEn ? parseQuizOptions(question.optionsEn) : [],
-                    };
-                }
-            })
+            questions: quiz.questions.map(question => ({
+                ...question,
+                options: parseQuestionOptionsForClient(question.type, question.options),
+                optionsEn: parseQuestionOptionsForClient(question.type, question.optionsEn),
+            })),
         };
 
         return NextResponse.json(quizWithParsedOptions);
@@ -105,19 +100,17 @@ export async function PATCH(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // Get the current quiz to know its course and owner
+        if (user?.role !== "TEACHER" && user?.role !== "ADMIN") {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
         const currentQuiz = await db.quiz.findUnique({
             where: { id: resolvedParams.quizId },
-            select: { courseId: true, position: true, course: { select: { userId: true } } }
+            select: { courseId: true, position: true }
         });
 
         if (!currentQuiz) {
             return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
-        }
-
-        // Only owner or admin can modify
-        if (user?.role !== "ADMIN" && currentQuiz.course.userId !== userId) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
         // Use the courseId from request if provided, otherwise use current quiz's courseId
@@ -225,45 +218,45 @@ export async function PATCH(
             }
         });
 
-        // Add questions separately
         if (questions.length > 0) {
-            await db.question.createMany({
-                data: questions.map((question: any, index: number) => {
-                    let correctAnswerValue: string = String(question.correctAnswer ?? "");
-                    if (question.type === "MULTIPLE_CHOICE") {
-                        const validOptions = question.options.filter((option: string) => option && option.trim() !== "");
-                        const indices = Array.isArray(question.correctAnswer)
-                            ? question.correctAnswer
-                            : [question.correctAnswer];
-                        const optionTexts = indices.map((i: number) => validOptions[i]).filter(Boolean);
-                        correctAnswerValue = optionTexts.length ? JSON.stringify(optionTexts) : validOptions[0] ?? "";
+            for (let i = 0; i < questions.length; i++) {
+                const question = questions[i];
+                if (isOptionListType(question.type)) {
+                    const validOptions = (question.options || []).filter((option: string) => option && option.trim() !== "");
+                    if (validOptions.length < 2) {
+                        return NextResponse.json({ error: `Question ${i + 1}: At least 2 valid options are required` }, { status: 400 });
                     }
-                    return {
-                        text: question.text,
-                        textEn:
-                            question.textEn == null || String(question.textEn).trim() === ""
-                                ? null
-                                : String(question.textEn).trim(),
-                        type: question.type,
-                        options: question.type === "MULTIPLE_CHOICE" ? stringifyQuizOptions(question.options) : null,
-                        optionsEn:
-                            question.type === "MULTIPLE_CHOICE" && Array.isArray(question.optionsEn)
-                                ? stringifyQuizOptions(question.optionsEn)
-                                : question.type === "MULTIPLE_CHOICE" && typeof question.optionsEn === "string"
-                                ? question.optionsEn.trim() || null
-                                : null,
-                        correctAnswer: correctAnswerValue,
-                        explanation: question.explanation?.trim() || null,
-                        explanationEn:
-                            question.explanationEn == null || String(question.explanationEn).trim() === ""
-                                ? null
-                                : String(question.explanationEn).trim(),
-                        points: question.points,
-                        imageUrl: question.imageUrl || null,
-                        quizId: resolvedParams.quizId,
-                        position: index + 1
-                    };
-                })
+                    const indices = Array.isArray(question.correctAnswer)
+                        ? question.correctAnswer
+                        : typeof question.correctAnswer === "number"
+                        ? [question.correctAnswer]
+                        : [];
+                    if (indices.length === 0) {
+                        return NextResponse.json({ error: `Question ${i + 1}: Correct answer is required` }, { status: 400 });
+                    }
+                    if (question.type === "DROPDOWN" && indices.length !== 1) {
+                        return NextResponse.json({ error: `Question ${i + 1}: Dropdown requires exactly one correct answer` }, { status: 400 });
+                    }
+                } else if (question.type === "MATCHING") {
+                    const matching = parseMatchingOptions(question.options);
+                    if (matching.prompts.length < 2 || matching.answers.length < matching.prompts.length) {
+                        return NextResponse.json({ error: `Question ${i + 1}: Invalid matching options` }, { status: 400 });
+                    }
+                    const correct = parseMatchingCorrect(question.correctAnswer);
+                    const used = new Set<string>();
+                    for (const prompt of matching.prompts) {
+                        const ans = correct[prompt];
+                        if (!ans || !matching.answers.includes(ans) || used.has(ans)) {
+                            return NextResponse.json({ error: `Question ${i + 1}: Each prompt needs a unique correct answer` }, { status: 400 });
+                        }
+                        used.add(ans);
+                    }
+                }
+            }
+            await db.question.createMany({
+                data: questions.map((question: any, index: number) =>
+                    buildQuestionCreateData(question, index, resolvedParams.quizId)
+                ),
             });
         }
 
@@ -288,13 +281,12 @@ export async function PATCH(
             return NextResponse.json({ error: "Failed to update quiz" }, { status: 500 });
         }
 
-        // Parse options for the response
         const quizWithParsedOptions = {
             ...quizWithQuestions,
             questions: quizWithQuestions.questions.map(question => ({
                 ...question,
-                options: parseQuizOptions(question.options),
-                optionsEn: parseQuizOptions(question.optionsEn),
+                options: parseQuestionOptionsForClient(question.type, question.options),
+                optionsEn: parseQuestionOptionsForClient(question.type, question.optionsEn),
             }))
         };
 

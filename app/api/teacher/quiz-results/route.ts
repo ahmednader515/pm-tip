@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
     try {
-        const { userId } = await auth();
+        const { userId, user } = await auth();
         const { searchParams } = new URL(req.url);
         const quizId = searchParams.get('quizId');
 
@@ -12,21 +12,22 @@ export async function GET(req: Request) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        // Build the where clause
-        const whereClause: any = {
-            quiz: {
-                course: {
-                    userId: userId
-                }
-            }
-        };
+        const canManageAll = user?.role === "TEACHER" || user?.role === "ADMIN";
 
-        // Add quizId filter if provided
+        const whereClause: any = canManageAll
+            ? {}
+            : {
+                quiz: {
+                    course: {
+                        userId: userId
+                    }
+                }
+            };
+
         if (quizId) {
             whereClause.quizId = quizId;
         }
 
-        // Get quiz results for quizzes owned by the teacher
         const quizResults = await db.quizResult.findMany({
             where: whereClause,
             include: {

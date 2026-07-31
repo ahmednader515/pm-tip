@@ -7,23 +7,26 @@ export async function GET(
     { params }: { params: Promise<{ resultId: string }> }
 ) {
     try {
-        const { userId } = await auth();
+        const { userId, user } = await auth();
         const resolvedParams = await params;
 
         if (!userId) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        // Get the quiz result and verify it belongs to a quiz owned by the teacher
+        const canManageAll = user?.role === "TEACHER" || user?.role === "ADMIN";
+
         const quizResult = await db.quizResult.findFirst({
-            where: {
-                id: resolvedParams.resultId,
-                quiz: {
-                    course: {
-                        userId: userId
+            where: canManageAll
+                ? { id: resolvedParams.resultId }
+                : {
+                    id: resolvedParams.resultId,
+                    quiz: {
+                        course: {
+                            userId: userId
+                        }
                     }
-                }
-            },
+                },
             include: {
                 user: {
                     select: {
@@ -50,8 +53,10 @@ export async function GET(
                                 type: true,
                                 points: true,
                                 options: true,
+                                optionsEn: true,
                                 correctAnswer: true,
-                                position: true
+                                position: true,
+                                imageUrl: true,
                             }
                         }
                     },

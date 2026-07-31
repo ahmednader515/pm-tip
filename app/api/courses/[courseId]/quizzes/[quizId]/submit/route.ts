@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { parseQuizOptions, parseCorrectAnswer } from "@/lib/utils";
+import { parseCorrectAnswer } from "@/lib/utils";
+import { gradeMatchingAnswer, matchingMaxPoints } from "@/lib/quiz-question";
 import { hasCourseAccess } from "@/lib/course-access";
 
 export async function POST(
@@ -74,13 +75,19 @@ export async function POST(
         const quizAnswers = [];
 
         for (const question of quiz.questions) {
-            totalPoints += question.points;
             const studentAnswer = answers.find((a: any) => a.questionId === question.id)?.answer || "";
             
             let isCorrect = false;
             let pointsEarned = 0;
 
-            if (question.type === "MULTIPLE_CHOICE") {
+            if (question.type === "MATCHING") {
+                totalPoints += matchingMaxPoints(question.options) || question.points;
+                const graded = gradeMatchingAnswer(question.correctAnswer, studentAnswer);
+                pointsEarned = graded.pointsEarned;
+                isCorrect = graded.isCorrect;
+                totalScore += pointsEarned;
+            } else if (question.type === "MULTIPLE_CHOICE" || question.type === "DROPDOWN") {
+                totalPoints += question.points;
                 const correctOptionTexts = parseCorrectAnswer(question.correctAnswer);
                 let studentSelected: string[] = [];
                 try {
@@ -93,25 +100,38 @@ export async function POST(
                 } catch {
                     studentSelected = studentAnswer.trim() ? [studentAnswer.trim()] : [];
                 }
+                if (question.type === "DROPDOWN" && studentSelected.length === 0 && studentAnswer.trim()) {
+                    studentSelected = [studentAnswer.trim()];
+                }
                 const correctSet = new Set(correctOptionTexts.map((t) => t.trim()));
                 const studentSet = new Set(studentSelected);
                 isCorrect = correctSet.size === studentSet.size && [...correctSet].every((t) => studentSet.has(t));
+                if (isCorrect) {
+                    pointsEarned = question.points;
+                    totalScore += question.points;
+                }
             } else if (question.type === "TRUE_FALSE") {
+                totalPoints += question.points;
                 isCorrect = studentAnswer.toLowerCase() === question.correctAnswer.toLowerCase();
+                if (isCorrect) {
+                    pointsEarned = question.points;
+                    totalScore += question.points;
+                }
             } else if (question.type === "SHORT_ANSWER") {
-                // For short answer, do a case-insensitive comparison
+                totalPoints += question.points;
                 isCorrect = studentAnswer.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
-            }
-
-            if (isCorrect) {
-                pointsEarned = question.points;
-                totalScore += question.points;
+                if (isCorrect) {
+                    pointsEarned = question.points;
+                    totalScore += question.points;
+                }
+            } else {
+                totalPoints += question.points;
             }
 
             quizAnswers.push({
                 questionId: question.id,
-                studentAnswer, // already string (single or JSON array)
-                correctAnswer: question.correctAnswer, // stored as-is (single or JSON array)
+                studentAnswer,
+                correctAnswer: question.correctAnswer,
                 isCorrect,
                 pointsEarned
             });

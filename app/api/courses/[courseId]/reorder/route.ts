@@ -7,7 +7,7 @@ export async function PUT(
     { params }: { params: Promise<{ courseId: string }> }
 ) {
     try {
-        const { userId } = await auth();
+        const { userId, user } = await auth();
         const resolvedParams = await params;
         const { list } = await req.json();
 
@@ -15,15 +15,18 @@ export async function PUT(
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        const courseOwner = await db.course.findUnique({
+        if (user?.role !== "TEACHER" && user?.role !== "ADMIN") {
+            return new NextResponse("Forbidden", { status: 403 });
+        }
+
+        const course = await db.course.findUnique({
             where: {
                 id: resolvedParams.courseId,
-                userId: userId,
             }
         });
 
-        if (!courseOwner) {
-            return new NextResponse("Unauthorized", { status: 401 });
+        if (!course) {
+            return new NextResponse("Course not found", { status: 404 });
         }
 
         // Separate chapters and quizzes

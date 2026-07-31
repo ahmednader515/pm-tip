@@ -4,6 +4,8 @@ import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,7 +17,14 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ArrowLeft, Clock, AlertCircle, Save, Eye, Languages } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { parseQuizOptions } from "@/lib/utils";
+import {
+    parseMatchingCorrect,
+    parseMatchingOptions,
+    type MatchingOptions,
+} from "@/lib/quiz-question";
+import { getMatchingDisplay, MatchingQuestion } from "@/components/quiz/matching-question";
 import {
     type RevealedFeedback,
     revealedFeedbackToState,
@@ -28,9 +37,9 @@ interface Question {
     id: string;
     text: string;
     textEn?: string | null;
-    type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER";
-    options?: string[] | string;
-    optionsEn?: string[] | string | null;
+    type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER" | "DROPDOWN" | "MATCHING";
+    options?: string[] | string | MatchingOptions | null;
+    optionsEn?: string[] | string | MatchingOptions | null;
     explanationEn?: string | null;
     points: number;
     imageUrl?: string;
@@ -39,11 +48,11 @@ interface Question {
 function resolveQuestionOptions(question: Question, locale: Locale): string[] {
     const arOpts = Array.isArray(question.options)
         ? question.options
-        : parseQuizOptions(question.options || null);
+        : parseQuizOptions(typeof question.options === "string" ? question.options : null);
     if (locale !== "en") return arOpts;
     const enOpts = Array.isArray(question.optionsEn)
         ? question.optionsEn
-        : parseQuizOptions(question.optionsEn || null);
+        : parseQuizOptions(typeof question.optionsEn === "string" ? question.optionsEn : null);
     if (!enOpts.length) return arOpts;
     return arOpts.map((opt, i) => (enOpts[i]?.trim() ? enOpts[i] : opt));
 }
@@ -77,13 +86,16 @@ function hasAnsweredQuestion(
 ): boolean {
     const entry = answers.find((a) => a.questionId === questionId);
     if (!entry?.answer?.trim()) return false;
-    if (questionType === "MULTIPLE_CHOICE") {
+    if (questionType === "MULTIPLE_CHOICE" || questionType === "DROPDOWN") {
         try {
             const parsed = JSON.parse(entry.answer);
             return Array.isArray(parsed) && parsed.length > 0;
         } catch {
             return entry.answer.trim().length > 0;
         }
+    }
+    if (questionType === "MATCHING") {
+        return Object.keys(parseMatchingCorrect(entry.answer)).length > 0;
     }
     return entry.answer.trim().length > 0;
 }
@@ -424,9 +436,38 @@ export default function QuizPage({
         }
     };
 
-    const handleMultipleChoiceSelect = (questionId: string, optionText: string) => {
+    const handleMultipleChoiceToggle = (questionId: string, optionText: string) => {
         if (isQuestionLocked(questionId)) return;
-        // Store as JSON array for grading compatibility (supports multi-correct keys)
+        setAnswers(prev => {
+            const existing = prev.find(a => a.questionId === questionId);
+            let current: string[] = [];
+            if (existing?.answer) {
+                try {
+                    const parsed = JSON.parse(existing.answer);
+                    current = Array.isArray(parsed) ? parsed.filter((x: unknown) => typeof x === "string") : [existing.answer];
+                } catch {
+                    current = [existing.answer];
+                }
+            }
+            const set = new Set(current);
+            if (set.has(optionText)) set.delete(optionText);
+            else set.add(optionText);
+            const nextArr = Array.from(set);
+            const nextAnswer = JSON.stringify(nextArr);
+            const next = existing
+                ? prev.map(a => a.questionId === questionId ? { ...a, answer: nextAnswer } : a)
+                : [...prev, { questionId, answer: nextAnswer }];
+            if (saveDraftTimeoutRef.current) clearTimeout(saveDraftTimeoutRef.current);
+            saveDraftTimeoutRef.current = setTimeout(
+                () => persistDraft(next, currentQuestionRef.current),
+                1500
+            );
+            return next;
+        });
+    };
+
+    const handleDropdownSelect = (questionId: string, optionText: string) => {
+        if (isQuestionLocked(questionId)) return;
         const nextAnswer = JSON.stringify(optionText ? [optionText] : []);
         setAnswers((prev) => {
             const existing = prev.find((a) => a.questionId === questionId);
@@ -444,16 +485,21 @@ export default function QuizPage({
         });
     };
 
-    const getMultipleChoiceSelected = (questionId: string): string => {
+    const getDropdownSelected = (questionId: string): string => {
         const raw = answers.find((a) => a.questionId === questionId)?.answer ?? "";
         if (!raw.trim()) return "";
         try {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && typeof parsed[0] === "string") return parsed[0];
         } catch {
-            /* plain string fallback */
+            /* plain string */
         }
         return raw;
+    };
+
+    const handleMatchingChange = (questionId: string, map: Record<string, string>) => {
+        if (isQuestionLocked(questionId)) return;
+        handleAnswerChange(questionId, JSON.stringify(map));
     };
 
     const handleSubmit = async () => {
@@ -578,10 +624,10 @@ export default function QuizPage({
                             {locale === "en" &&
                                 quiz?.questions.some((q) => {
                                     if (!q.textEn?.trim()) return true;
-                                    if (q.type === "MULTIPLE_CHOICE") {
+                                    if (q.type === "MULTIPLE_CHOICE" || q.type === "DROPDOWN") {
                                         const enOpts = Array.isArray(q.optionsEn)
                                             ? q.optionsEn
-                                            : parseQuizOptions(q.optionsEn || null);
+                                            : parseQuizOptions(typeof q.optionsEn === "string" ? q.optionsEn : null);
                                         return !enOpts.some((o) => o?.trim());
                                     }
                                     return false;
@@ -638,20 +684,20 @@ export default function QuizPage({
                     </Card>
 
                     {/* Question */}
-                    <Card className="rounded-xl border shadow-sm">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
                                 {t("questionN", { n: currentQuestion + 1 })}
                                 <Badge variant="outline">{t("pointsBadge", { points: currentQuestionData.points })}</Badge>
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent className="space-y-6">
                             {revealedCorrect[currentQuestionData.id] != null && (
                                 <div className="rounded-md bg-muted/80 px-3 py-1.5 text-sm text-muted-foreground inline-flex items-center gap-1">
                                     {t("lockedAnswer")}
                                 </div>
                             )}
-                            <div className="text-base md:text-lg font-medium auto-dir leading-relaxed">
+                            <div className="text-lg auto-dir">
                                 {(() => {
                                     const stored = resolveQuestionText(currentQuestionData, locale);
                                     if (locale === "en" && currentQuestionData.textEn?.trim()) return stored;
@@ -670,27 +716,61 @@ export default function QuizPage({
                                 </div>
                             )}
 
-                            {currentQuestionData.type === "MULTIPLE_CHOICE" && (() => {
-                                const hasStoredEn =
-                                    locale === "en" &&
-                                    (Array.isArray(currentQuestionData.optionsEn)
-                                        ? currentQuestionData.optionsEn.some((o) => o?.trim())
-                                        : !!parseQuizOptions(currentQuestionData.optionsEn || null).length);
-                                const opts = hasStoredEn
-                                    ? resolveQuestionOptions(currentQuestionData, locale)
-                                    : (translatedQuiz?.questions[currentQuestion]?.options ??
-                                        resolveQuestionOptions(currentQuestionData, locale));
+                            {currentQuestionData.type === "MULTIPLE_CHOICE" && (
+                                <div className={`space-y-3 ${revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}`}>
+                                    {(() => {
+                                        const hasStoredEn =
+                                            locale === "en" &&
+                                            (Array.isArray(currentQuestionData.optionsEn)
+                                                ? currentQuestionData.optionsEn.some((o) => typeof o === "string" && o?.trim())
+                                                : !!parseQuizOptions(typeof currentQuestionData.optionsEn === "string" ? currentQuestionData.optionsEn : null).length);
+                                        const opts = hasStoredEn
+                                            ? resolveQuestionOptions(currentQuestionData, locale)
+                                            : (translatedQuiz?.questions[currentQuestion]?.options ??
+                                                resolveQuestionOptions(currentQuestionData, locale));
+                                        const origOpts = Array.isArray(currentQuestionData.options)
+                                            ? currentQuestionData.options
+                                            : parseQuizOptions(typeof currentQuestionData.options === "string" ? currentQuestionData.options : null);
+                                        const isLocked = revealedCorrect[currentQuestionData.id] != null;
+                                        return opts.map((option: string, index: number) => {
+                                            const origOption = origOpts[index] ?? option;
+                                            const raw = answers.find(a => a.questionId === currentQuestionData.id)?.answer ?? "";
+                                            let selected = false;
+                                            try {
+                                                const parsed = JSON.parse(raw);
+                                                selected = Array.isArray(parsed) && parsed.includes(origOption);
+                                            } catch {
+                                                selected = raw === origOption;
+                                            }
+                                            return (
+                                                <div key={index} className="flex items-center space-x-2">
+                                                    <Checkbox
+                                                        id={`option-${currentQuestionData.id}-${index}`}
+                                                        checked={selected}
+                                                        disabled={isLocked}
+                                                        onCheckedChange={() => handleMultipleChoiceToggle(currentQuestionData.id, origOption)}
+                                                    />
+                                                    <Label htmlFor={`option-${currentQuestionData.id}-${index}`} className="cursor-pointer flex-1 auto-dir">{option}</Label>
+                                                </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                            )}
+
+                            {currentQuestionData.type === "DROPDOWN" && (() => {
+                                const opts = resolveQuestionOptions(currentQuestionData, locale);
                                 const origOpts = Array.isArray(currentQuestionData.options)
                                     ? currentQuestionData.options
-                                    : parseQuizOptions(currentQuestionData.options || null);
+                                    : parseQuizOptions(typeof currentQuestionData.options === "string" ? currentQuestionData.options : null);
                                 const isLocked = revealedCorrect[currentQuestionData.id] != null;
-                                const selectedOrig = getMultipleChoiceSelected(currentQuestionData.id);
+                                const selectedOrig = getDropdownSelected(currentQuestionData.id);
                                 return (
                                     <div className={isLocked ? "pointer-events-none opacity-80" : ""}>
                                         <Select
                                             value={selectedOrig || undefined}
                                             onValueChange={(value) =>
-                                                handleMultipleChoiceSelect(currentQuestionData.id, value)
+                                                handleDropdownSelect(currentQuestionData.id, value)
                                             }
                                             disabled={isLocked}
                                         >
@@ -705,7 +785,7 @@ export default function QuizPage({
                                                     const origOption = origOpts[index] ?? option;
                                                     return (
                                                         <SelectItem
-                                                            key={`${currentQuestionData.id}-${index}`}
+                                                            key={`${currentQuestionData.id}-dd-${index}`}
                                                             value={origOption}
                                                             className="auto-dir text-base py-2.5"
                                                         >
@@ -719,28 +799,59 @@ export default function QuizPage({
                                 );
                             })()}
 
+                            {currentQuestionData.type === "MATCHING" && (() => {
+                                const matching = parseMatchingOptions(
+                                    currentQuestionData.options as MatchingOptions | string | null
+                                );
+                                const matchingEn = parseMatchingOptions(
+                                    currentQuestionData.optionsEn as MatchingOptions | string | null
+                                );
+                                const display = getMatchingDisplay(matching, matchingEn, locale);
+                                const isLocked = revealedCorrect[currentQuestionData.id] != null;
+                                const map = parseMatchingCorrect(
+                                    answers.find((a) => a.questionId === currentQuestionData.id)?.answer
+                                );
+                                return (
+                                    <div className={isLocked ? "pointer-events-none opacity-80" : ""}>
+                                        <MatchingQuestion
+                                            prompts={display.prompts}
+                                            answers={display.answers}
+                                            promptsDisplay={display.promptsDisplay}
+                                            answersDisplay={display.answersDisplay}
+                                            value={map}
+                                            onChange={(next) =>
+                                                handleMatchingChange(currentQuestionData.id, next)
+                                            }
+                                            disabled={isLocked}
+                                        />
+                                    </div>
+                                );
+                            })()}
+
                             {currentQuestionData.type === "TRUE_FALSE" && (
                                 <div className={revealedCorrect[currentQuestionData.id] != null ? "pointer-events-none opacity-80" : ""}>
-                                    <Select
-                                        value={answers.find((a) => a.questionId === currentQuestionData.id)?.answer || undefined}
+                                    <RadioGroup
+                                        value={answers.find(a => a.questionId === currentQuestionData.id)?.answer || ""}
                                         onValueChange={(value) => handleAnswerChange(currentQuestionData.id, value)}
                                         disabled={revealedCorrect[currentQuestionData.id] != null}
                                     >
-                                        <SelectTrigger
-                                            className="h-12 w-full rounded-xl border-border bg-background text-base auto-dir"
-                                            dir={locale === "ar" ? "rtl" : "ltr"}
-                                        >
-                                            <SelectValue placeholder={t("choosePlaceholder")} />
-                                        </SelectTrigger>
-                                        <SelectContent dir={locale === "ar" ? "rtl" : "ltr"}>
-                                            <SelectItem value="true" className="text-base py-2.5">
-                                                {tCommon("true")}
-                                            </SelectItem>
-                                            <SelectItem value="false" className="text-base py-2.5">
-                                                {tCommon("false")}
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem
+                                                value="true"
+                                                id={`true-${currentQuestionData.id}`}
+                                                disabled={revealedCorrect[currentQuestionData.id] != null}
+                                            />
+                                            <Label htmlFor={`true-${currentQuestionData.id}`}>{tCommon("true")}</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem
+                                                value="false"
+                                                id={`false-${currentQuestionData.id}`}
+                                                disabled={revealedCorrect[currentQuestionData.id] != null}
+                                            />
+                                            <Label htmlFor={`false-${currentQuestionData.id}`}>{tCommon("false")}</Label>
+                                        </div>
+                                    </RadioGroup>
                                 </div>
                             )}
 
@@ -751,7 +862,7 @@ export default function QuizPage({
                                     onChange={(e) => handleAnswerChange(currentQuestionData.id, e.target.value)}
                                     rows={4}
                                     disabled={revealedCorrect[currentQuestionData.id] != null}
-                                    className={`rounded-xl ${revealedCorrect[currentQuestionData.id] != null ? "opacity-80" : ""}`}
+                                    className={revealedCorrect[currentQuestionData.id] != null ? "opacity-80" : ""}
                                 />
                             )}
 
@@ -806,31 +917,33 @@ export default function QuizPage({
                     </Card>
 
                     {/* Navigation */}
-                    <div className="flex items-center gap-3">
-                        {currentQuestion === quiz.questions.length - 1 ? (
-                            <Button
-                                onClick={handleSubmit}
-                                disabled={submitting}
-                                className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90"
-                            >
-                                {submitting ? t("submitting") : t("finishQuiz")}
-                            </Button>
-                        ) : (
-                            <Button
-                                onClick={() => goToQuestion(currentQuestion + 1)}
-                                className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90"
-                            >
-                                {tCommon("next")}
-                            </Button>
-                        )}
+                    <div className="flex items-center justify-between">
                         <Button
                             variant="outline"
                             onClick={() => goToQuestion(Math.max(0, currentQuestion - 1))}
                             disabled={currentQuestion === 0}
-                            className="flex-1 h-11 rounded-xl border-primary text-primary hover:bg-primary/10"
                         >
                             {tCommon("previous")}
                         </Button>
+
+                        <div className="flex items-center gap-2">
+                            {currentQuestion === quiz.questions.length - 1 ? (
+                                <Button
+                                    onClick={handleSubmit}
+                                    disabled={submitting}
+                                    className="bg-primary hover:bg-primary/90"
+                                >
+                                    {submitting ? t("submitting") : t("finishQuiz")}
+                                </Button>
+                            ) : (
+                                <Button
+                                    onClick={() => goToQuestion(currentQuestion + 1)}
+                                    className="bg-primary hover:bg-primary/90"
+                                >
+                                    {tCommon("next")}
+                                </Button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Warning */}
