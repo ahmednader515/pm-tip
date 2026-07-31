@@ -135,7 +135,7 @@ const AdminCodesPage = () => {
         fetchCodes(); // Refresh the list
       } else {
         const error = await response.text();
-        toast.error(error || {t("codesCreateError")});
+        toast.error(error || t("codesCreateError"));
       }
     } catch (error) {
       console.error("Error generating codes:", error);

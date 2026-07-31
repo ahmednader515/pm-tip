@@ -125,7 +125,7 @@ const TeacherAddCoursesPage = () => {
                 fetchUsers(); // Refresh the list
             } else {
                 const error = await response.json();
-                toast.error(error.message || {t("addCourseError")});
+                toast.error(error.message || t("addCourseError"));
             }
         } catch (error) {
             console.error("Error adding course:", error);
@@ -156,7 +156,7 @@ const TeacherAddCoursesPage = () => {
                 fetchUsers();
             } else {
                 const data = await res.json().catch(() => ({} as any));
-                toast.error((data as any).error || {t("removeCourseError")});
+                toast.error((data as any).error || t("removeCourseError"));
             }
         } catch (error) {
             console.error("Error deleting course:", error);
@@ -298,9 +298,9 @@ const TeacherAddCoursesPage = () => {
                                         <SelectItem key={course.id} value={course.id}>
                                             <div className="flex items-center justify-between w-full">
                                                 <span>{course.title}</span>
-                                                {tCommon("amountEgp", { amount: typeof course.price === "number" && (
+                                                {typeof course.price === "number" && (
                                                     <Badge variant="outline" className="mr-2">
-                                                        {course.price })}
+                                                        {tCommon("amountEgp", { amount: course.price })}
                                                     </Badge>
                                                 )}
                                             </div>

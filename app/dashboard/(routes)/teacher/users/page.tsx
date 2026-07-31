@@ -146,7 +146,7 @@ const UsersPage = () => {
                 } else if (response.status === 404) {
                     toast.error(t("userNotFound"));
                 } else if (response.status === 400) {
-                    toast.error(error || {t("invalidData")});
+                    toast.error(error || t("invalidData"));
                 } else {
                     toast.error(t("updateDataError"));
                 }
@@ -175,7 +175,7 @@ const UsersPage = () => {
                 } else if (response.status === 404) {
                     toast.error(t("userNotFound"));
                 } else {
-                    toast.error(error || {t("deleteUserError")});
+                    toast.error(error || t("deleteUserError"));
                 }
             }
         } catch (error) {
@@ -285,7 +285,7 @@ const UsersPage = () => {
                                                     </DialogTrigger>
                                                     <DialogContent>
                                                         <DialogHeader>
-                                                            <DialogTitle>{t("editEntityTitle", { entity: user.role === "TEACHER" ? t("teacherNoun") : t("adminNoun") )}</DialogTitle>
+                                                            <DialogTitle>{t("editEntityTitle", { entity: user.role === "TEACHER" ? t("teacherNoun") : t("adminNoun") })}</DialogTitle>
                                                             <DialogDescription>
                                                                 {t("editEntityDesc", { entity: user.role === "TEACHER" ? t("teacherNoun") : t("adminNoun") })}
                                                             </DialogDescription>

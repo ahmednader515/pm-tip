@@ -132,7 +132,7 @@ const UsersPage = () => {
                 fetchUsers(); // Refresh the list
             } else {
                 const error = await response.text();
-                toast.error(error || {t("updateUserError")});
+                toast.error(error || t("updateUserError"));
             }
         } catch (error) {
             console.error("Error updating user:", error);
@@ -152,7 +152,7 @@ const UsersPage = () => {
                 fetchUsers(); // Refresh the list
             } else {
                 const error = await response.text();
-                toast.error(error || {t("deleteUserError")});
+                toast.error(error || t("deleteUserError"));
             }
         } catch (error) {
             console.error("Error deleting user:", error);
