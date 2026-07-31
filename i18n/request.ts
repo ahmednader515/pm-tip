@@ -1,8 +1,13 @@
-import { readFileSync } from "fs";
-import { join } from "path";
 import { cookies } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
 import { defaultLocale, isLocale, LOCALE_COOKIE, type Locale } from "./config";
+import ar from "../messages/ar.json";
+import en from "../messages/en.json";
+
+const catalogs: Record<Locale, Record<string, unknown>> = {
+  ar: ar as Record<string, unknown>,
+  en: en as Record<string, unknown>,
+};
 
 function getByPath(obj: Record<string, unknown>, path: string): unknown {
   return path.split(".").reduce<unknown>((acc, key) => {
@@ -13,19 +18,13 @@ function getByPath(obj: Record<string, unknown>, path: string): unknown {
   }, obj);
 }
 
-function loadMessages(locale: Locale): Record<string, unknown> {
-  // Read from disk so message JSON edits are never stuck behind Turbopack import cache.
-  const filePath = join(process.cwd(), "messages", `${locale}.json`);
-  return JSON.parse(readFileSync(filePath, "utf8")) as Record<string, unknown>;
-}
-
 export default getRequestConfig(async () => {
   const store = await cookies();
   const raw = store.get(LOCALE_COOKIE)?.value;
   const locale: Locale = isLocale(raw) ? raw : defaultLocale;
 
-  const messages = loadMessages(locale);
-  const fallbackMessages = locale === "ar" ? messages : loadMessages("ar");
+  const messages = catalogs[locale] ?? catalogs[defaultLocale];
+  const fallbackMessages = catalogs.ar;
 
   return {
     locale,

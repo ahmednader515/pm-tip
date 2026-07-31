@@ -36,25 +36,30 @@ export function revalidateHomepagePaths() {
 export async function getHomepageContent(): Promise<HomepageContent> {
     noStore();
 
-    const row = await db.homepageSettings.findUnique({
-        where: { id: HOMEPAGE_SETTINGS_ID },
-    });
-
-    if (!row) {
-        await db.homepageSettings.create({
-            data: {
-                id: HOMEPAGE_SETTINGS_ID,
-                teacherImageUrl: DEFAULT_HOMEPAGE_CONTENT.teacherImageUrl,
-                headerLogoUrl: DEFAULT_HOMEPAGE_CONTENT.headerLogoUrl,
-                footerPhone: DEFAULT_HOMEPAGE_CONTENT.footerPhone,
-                testimonials: DEFAULT_HOMEPAGE_CONTENT.testimonials,
-                features: DEFAULT_HOMEPAGE_CONTENT.features,
-            },
+    try {
+        const row = await db.homepageSettings.findUnique({
+            where: { id: HOMEPAGE_SETTINGS_ID },
         });
+
+        if (!row) {
+            await db.homepageSettings.create({
+                data: {
+                    id: HOMEPAGE_SETTINGS_ID,
+                    teacherImageUrl: DEFAULT_HOMEPAGE_CONTENT.teacherImageUrl,
+                    headerLogoUrl: DEFAULT_HOMEPAGE_CONTENT.headerLogoUrl,
+                    footerPhone: DEFAULT_HOMEPAGE_CONTENT.footerPhone,
+                    testimonials: DEFAULT_HOMEPAGE_CONTENT.testimonials,
+                    features: DEFAULT_HOMEPAGE_CONTENT.features,
+                },
+            });
+            return DEFAULT_HOMEPAGE_CONTENT;
+        }
+
+        return toHomepageContent(row);
+    } catch (error) {
+        console.error("[HOMEPAGE_CONTENT]", error);
         return DEFAULT_HOMEPAGE_CONTENT;
     }
-
-    return toHomepageContent(row);
 }
 
 /** One DB read per request when used from layout + icon/metadata */
