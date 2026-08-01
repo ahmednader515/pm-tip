@@ -621,17 +621,6 @@ export default function QuizPage({
                                 <Save className="h-4 w-4" />
                                 {savingDraft ? t("saving") : t("saveAnswers")}
                             </Button>
-                            {locale === "en" &&
-                                quiz?.questions.some((q) => {
-                                    if (!q.textEn?.trim()) return true;
-                                    if (q.type === "MULTIPLE_CHOICE" || q.type === "DROPDOWN") {
-                                        const enOpts = Array.isArray(q.optionsEn)
-                                            ? q.optionsEn
-                                            : parseQuizOptions(typeof q.optionsEn === "string" ? q.optionsEn : null);
-                                        return !enOpts.some((o) => o?.trim());
-                                    }
-                                    return false;
-                                }) && (
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -642,7 +631,6 @@ export default function QuizPage({
                                 <Languages className="h-4 w-4" />
                                 {translatedQuiz ? t("showArabic") : translating ? t("translating") : t("translateToEnglish")}
                             </Button>
-                            )}
                             {lastSavedAt && !savingDraft && (
                                 <span className="text-xs text-muted-foreground">
                                     {t("lastSaved", { time: lastSavedAt.toLocaleTimeString(locale === "ar" ? "ar-SA" : "en-US") })}
@@ -759,7 +747,15 @@ export default function QuizPage({
                             )}
 
                             {currentQuestionData.type === "DROPDOWN" && (() => {
-                                const opts = resolveQuestionOptions(currentQuestionData, locale);
+                                const hasStoredEn =
+                                    locale === "en" &&
+                                    (Array.isArray(currentQuestionData.optionsEn)
+                                        ? currentQuestionData.optionsEn.some((o) => typeof o === "string" && o?.trim())
+                                        : !!parseQuizOptions(typeof currentQuestionData.optionsEn === "string" ? currentQuestionData.optionsEn : null).length);
+                                const opts = hasStoredEn
+                                    ? resolveQuestionOptions(currentQuestionData, locale)
+                                    : (translatedQuiz?.questions[currentQuestion]?.options ??
+                                        resolveQuestionOptions(currentQuestionData, locale));
                                 const origOpts = Array.isArray(currentQuestionData.options)
                                     ? currentQuestionData.options
                                     : parseQuizOptions(typeof currentQuestionData.options === "string" ? currentQuestionData.options : null);
